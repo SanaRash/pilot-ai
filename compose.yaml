@@ -1,0 +1,19 @@
+services:
+  database:
+    image: postgres:17
+    container_name: pilot-ai-db
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: pilot_ai
+      POSTGRES_USER: pilot_ai
+      POSTGRES_PASSWORD: pilot_ai_password
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - pilot_ai_database:/var/lib/postgresql/data
+
+volumes:
+  pilot_ai_database:
