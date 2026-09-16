@@ -1,0 +1,31 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Nouveau ticket | Pilot AI{% endblock %}
+
+{% block body %}
+
+    <h1>Créer un ticket</h1>
+
+    {% for message in app.flashes('success') %}
+        <div>
+            {{ message }}
+        </div>
+    {% endfor %}
+
+    {{ form_start(form) }}
+
+        {{ form_row(form.title, {
+            label: 'Titre'
+        }) }}
+
+        {{ form_row(form.description, {
+            label: 'Description'
+        }) }}
+
+        <button type="submit">
+            Créer le ticket
+        </button>
+
+    {{ form_end(form) }}
+
+{% endblock %}
