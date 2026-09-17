@@ -16,6 +16,7 @@
 - [x] TASK-3.7 — Modifier la priorité d'un ticket
 - [x] TASK-3.8 — Ajouter ou modifier la catégorie d'un ticket
 - [x] TASK-3.9 — Liste des tickets client
+- [x] TASK-3.10 — Détail d'un ticket client
 
 ## Tâches validées
 
@@ -118,7 +119,24 @@ Critères d'acceptation :
 - [x] Code Review approuvée
 - [x] validation humaine
 
-## Suite
-
 ### TASK-3.10 — Détail ticket client
-- [ ] le client ne voit qu'un ticket dont il est propriétaire
+
+Critères d'acceptation :
+- [x] route GET `/client/tickets/{id}`
+- [x] accès réservé ROLE_CLIENT
+- [x] chargement simultanément filtré par id et createdBy
+- [x] propriétaire autorisé à consulter le détail
+- [x] autre client refusé avec une 404
+- [x] ticket inexistant retourné en 404
+- [x] informations du ticket affichées
+- [x] vue strictement en lecture seule
+- [x] aucun formulaire ni mutation métier
+- [x] aucun TicketHistory créé
+- [x] QA approuvée
+- [x] Security Review approuvée
+- [x] Code Review approuvée
+- [x] validation humaine
+
+## Phase terminée
+
+Toutes les tâches de la phase 03 ont été validées humainement.

@@ -1,0 +1,33 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ ticket.title }} | Pilot AI{% endblock %}
+
+{% block body %}
+
+    <h1>{{ ticket.title }}</h1>
+
+    <dl>
+        <dt>Description</dt>
+        <dd>{{ ticket.description }}</dd>
+
+        <dt>Statut</dt>
+        <dd>{{ ticket.status }}</dd>
+
+        <dt>Priorité</dt>
+        <dd>{{ ticket.priority }}</dd>
+
+        <dt>Catégorie</dt>
+        <dd>{{ ticket.category ? ticket.category.name : 'Non catégorisé' }}</dd>
+
+        <dt>Source</dt>
+        <dd>{{ ticket.source }}</dd>
+
+        <dt>Date de création</dt>
+        <dd>{{ ticket.createdAt|date('d/m/Y H:i') }}</dd>
+    </dl>
+
+    <p>
+        <a href="{{ path('app_client_tickets') }}">Retour à mes tickets</a>
+    </p>
+
+{% endblock %}

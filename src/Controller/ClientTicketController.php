@@ -31,6 +31,29 @@ final class ClientTicketController extends AbstractController
         ]);
     }
 
+    #[Route('/client/tickets/{id}', name: 'app_client_ticket_show', methods: ['GET'])]
+    public function show(int $id, TicketRepository $ticketRepository): Response
+    {
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $ticket = $ticketRepository->findOneBy([
+            'id' => $id,
+            'createdBy' => $user,
+        ]);
+
+        if (!$ticket instanceof Ticket) {
+            throw $this->createNotFoundException();
+        }
+
+        return $this->render('client_ticket/show.html.twig', [
+            'ticket' => $ticket,
+        ]);
+    }
+
     #[Route('/client/ticket/new', name: 'app_client_ticket_new')]
     public function new(
         Request $request,
