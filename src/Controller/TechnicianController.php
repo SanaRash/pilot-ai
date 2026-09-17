@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Ticket;
 use App\Entity\User;
+use App\Repository\CategoryRepository;
 use App\Repository\TicketRepository;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
@@ -29,14 +30,16 @@ final class TechnicianController extends AbstractController
     }
 
     #[Route('/technician/tickets/{id}', name: 'app_technician_ticket_show', methods: ['GET'])]
-    public function show(Ticket $ticket): Response
+    public function show(Ticket $ticket, CategoryRepository $categoryRepository): Response
     {
         return $this->render('technician/ticket_show.html.twig', [
             'ticket' => $ticket,
+            'categories' => $categoryRepository->findBy([], ['name' => 'ASC']),
             'allowed_statuses' => Ticket::ALLOWED_STATUSES,
             'allowed_priorities' => Ticket::ALLOWED_PRIORITIES,
             'can_update_status' => $this->isAssignedTechnician($ticket, $this->getUser()),
             'can_update_priority' => $this->isAssignedTechnician($ticket, $this->getUser()),
+            'can_update_category' => $this->isAssignedTechnician($ticket, $this->getUser()),
         ]);
     }
 
@@ -163,6 +166,62 @@ final class TechnicianController extends AbstractController
         $entityManager->flush();
 
         $this->addFlash('success', 'La priorité du ticket a été mise à jour.');
+
+        return $this->redirectToRoute('app_technician_ticket_show', [
+            'id' => $ticketId,
+        ]);
+    }
+
+    #[Route('/technician/tickets/{id}/category', name: 'app_technician_ticket_category', methods: ['POST'])]
+    public function updateCategory(
+        Ticket $ticket,
+        Request $request,
+        CategoryRepository $categoryRepository,
+        EntityManagerInterface $entityManager,
+    ): Response {
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $ticketId = $ticket->getId();
+
+        if (null === $ticketId || !$this->isAssignedTechnician($ticket, $user)) {
+            throw $this->createAccessDeniedException('Seul le technicien assigné peut modifier la catégorie.');
+        }
+
+        if (!$this->isCsrfTokenValid('update-ticket-category-'.$ticketId, $request->request->getString('_token'))) {
+            throw $this->createAccessDeniedException('Jeton CSRF invalide.');
+        }
+
+        $submittedCategoryId = $request->request->all()['category_id'] ?? null;
+        $categoryId = is_string($submittedCategoryId) && 1 === preg_match('/^[1-9][0-9]*$/D', $submittedCategoryId)
+            ? filter_var($submittedCategoryId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]])
+            : false;
+
+        if (false === $categoryId) {
+            $this->addFlash('error', 'La catégorie sélectionnée est invalide.');
+
+            return $this->redirectToRoute('app_technician_ticket_show', [
+                'id' => $ticketId,
+            ]);
+        }
+
+        $category = $categoryRepository->find($categoryId);
+
+        if (null === $category) {
+            $this->addFlash('error', 'La catégorie sélectionnée est introuvable.');
+
+            return $this->redirectToRoute('app_technician_ticket_show', [
+                'id' => $ticketId,
+            ]);
+        }
+
+        $ticket->setCategory($category);
+        $entityManager->flush();
+
+        $this->addFlash('success', 'La catégorie du ticket a été mise à jour.');
 
         return $this->redirectToRoute('app_technician_ticket_show', [
             'id' => $ticketId,

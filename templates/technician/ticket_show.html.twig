@@ -52,6 +52,9 @@
         <dt>Priorité</dt>
         <dd>{{ ticket.priority }}</dd>
 
+        <dt>Catégorie</dt>
+        <dd>{{ ticket.category ? ticket.category.name : 'Non catégorisé' }}</dd>
+
         <dt>Source</dt>
         <dd>{{ ticket.source }}</dd>
 
@@ -94,6 +97,25 @@
 
             <button type="submit">Modifier la priorité</button>
         </form>
+    {% endif %}
+
+    {% if can_update_category %}
+        {% if categories is not empty %}
+            <form method="post" action="{{ path('app_technician_ticket_category', {id: ticket.id}) }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('update-ticket-category-' ~ ticket.id) }}">
+
+                <label for="ticket-category">Catégorie</label>
+                <select id="ticket-category" name="category_id">
+                    {% for category in categories %}
+                        <option value="{{ category.id }}"{% if ticket.category and ticket.category.id == category.id %} selected{% endif %}>{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+
+                <button type="submit">Modifier la catégorie</button>
+            </form>
+        {% else %}
+            <p>Aucune catégorie n'est disponible.</p>
+        {% endif %}
     {% endif %}
 
     <p>

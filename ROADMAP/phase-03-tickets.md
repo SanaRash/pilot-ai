@@ -14,6 +14,7 @@
 - [x] TASK-3.5 — Assignation d'un ticket à un technicien
 - [x] TASK-3.6 — Modifier le statut d'un ticket
 - [x] TASK-3.7 — Modifier la priorité d'un ticket
+- [x] TASK-3.8 — Ajouter ou modifier la catégorie d'un ticket
 
 ## Tâches validées
 
@@ -83,10 +84,22 @@ Critères d'acceptation :
 - [x] Code Review approuvée
 - [x] validation humaine
 
-## Suite
-
 ### TASK-3.8 — Catégorie
-- [ ] assigner une Category
+
+Critères d'acceptation :
+- [x] catégorie choisie parmi les catégories existantes
+- [x] validation de l'existence en base côté serveur
+- [x] modification réservée au technicien assigné
+- [x] protection CSRF
+- [x] catégorie affichée sur le détail
+- [x] aucun statut, priorité ou assignation modifié
+- [x] aucun TicketHistory créé
+- [x] QA approuvée
+- [x] Security Review approuvée
+- [x] Code Review approuvée
+- [x] validation humaine
+
+## Suite
 
 ### TASK-3.9 — Liste tickets client
 - [ ] le client ne voit que ses tickets
