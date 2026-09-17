@@ -6,12 +6,45 @@
 
     <h1>{{ ticket.title }}</h1>
 
+    {% for message in app.flashes('success') %}
+        <div>
+            {{ message }}
+        </div>
+    {% endfor %}
+
+    {% for message in app.flashes('error') %}
+        <div>
+            {{ message }}
+        </div>
+    {% endfor %}
+
+    {% for message in app.flashes('info') %}
+        <div>
+            {{ message }}
+        </div>
+    {% endfor %}
+
+    {% for message in app.flashes('warning') %}
+        <div>
+            {{ message }}
+        </div>
+    {% endfor %}
+
     <dl>
         <dt>Description</dt>
         <dd>{{ ticket.description }}</dd>
 
         <dt>Client</dt>
         <dd>{{ ticket.createdBy.firstname }} {{ ticket.createdBy.lastname }}</dd>
+
+        <dt>Technicien assigné</dt>
+        <dd>
+            {% if ticket.assignedTo %}
+                {{ ticket.assignedTo.firstname }} {{ ticket.assignedTo.lastname }}
+            {% else %}
+                Non assigné
+            {% endif %}
+        </dd>
 
         <dt>Statut</dt>
         <dd>{{ ticket.status }}</dd>
@@ -25,6 +58,13 @@
         <dt>Date de création</dt>
         <dd>{{ ticket.createdAt|date('d/m/Y H:i') }}</dd>
     </dl>
+
+    {% if not ticket.assignedTo %}
+        <form method="post" action="{{ path('app_technician_ticket_assign', {id: ticket.id}) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('assign-ticket-' ~ ticket.id) }}">
+            <button type="submit">M'assigner ce ticket</button>
+        </form>
+    {% endif %}
 
     <p>
         <a href="{{ path('app_technician_tickets') }}">Retour à la liste des tickets</a>

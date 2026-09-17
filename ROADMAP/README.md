@@ -21,8 +21,8 @@
 
 ## Dernière tâche validée
 
-`TASK-3.4 — Afficher le détail d'un ticket côté technicien`
+`TASK-3.5 — Assignation d'un ticket à un technicien`
 
 ## Prochaine tâche
 
-`TASK-3.5 — Assignation` — ne pas commencer sans nouvelle validation humaine.
+`TASK-3.6 — Statut` — ne pas commencer sans nouvelle validation humaine.

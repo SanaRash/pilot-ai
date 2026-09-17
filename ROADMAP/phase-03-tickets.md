@@ -11,8 +11,9 @@
   - [x] createdBy = utilisateur connecté
 - [x] TASK-3.3 — Liste des tickets côté technicien
 - [x] TASK-3.4 — Afficher le détail d'un ticket côté technicien
+- [x] TASK-3.5 — Assignation d'un ticket à un technicien
 
-## Tâche validée
+## Tâches validées
 
 ### TASK-3.4 — Afficher le détail d'un ticket côté technicien
 
@@ -32,12 +33,21 @@ Critères d'acceptation :
 - [x] QA approuvée
 - [x] validation humaine
 
-## Suite
-
 ### TASK-3.5 — Assignation
-- [ ] technicien peut prendre en charge un ticket
-- [ ] assignedTo = technicien connecté ou choix autorisé
-- [ ] contrôle d'autorisation
+
+Critères d'acceptation :
+- [x] technicien peut prendre en charge un ticket
+- [x] assignedTo = technicien connecté
+- [x] contrôle d'autorisation
+- [x] protection CSRF
+- [x] un ticket déjà assigné n'est pas écrasé
+- [x] technicien assigné affiché sur le détail
+- [x] QA approuvée
+- [x] Security Review approuvée
+- [x] Code Review approuvée
+- [x] validation humaine
+
+## Suite
 
 ### TASK-3.6 — Statut
 - [ ] OPEN
