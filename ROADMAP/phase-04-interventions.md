@@ -1,9 +1,9 @@
 # Phase 04 — Interventions
 
-- [ ] formulaire ajout intervention
-- [ ] intervention liée au ticket
-- [ ] technician = utilisateur connecté
-- [ ] createdAt automatique
+- [x] formulaire ajout intervention
+- [x] intervention liée au ticket
+- [x] technician = utilisateur connecté
+- [x] createdAt automatique
 - [ ] liste chronologique des interventions
 - [ ] autorisation technicien
 - [ ] QA

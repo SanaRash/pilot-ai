@@ -2,13 +2,16 @@
 
 namespace App\Controller;
 
+use App\Entity\Intervention;
 use App\Entity\Ticket;
 use App\Entity\User;
+use App\Form\InterventionType;
 use App\Repository\CategoryRepository;
 use App\Repository\TicketRepository;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Form\FormView;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -32,6 +35,66 @@ final class TechnicianController extends AbstractController
     #[Route('/technician/tickets/{id}', name: 'app_technician_ticket_show', methods: ['GET'])]
     public function show(Ticket $ticket, CategoryRepository $categoryRepository): Response
     {
+        $interventionForm = $this->createForm(InterventionType::class, new Intervention(), [
+            'action' => $this->generateUrl('app_technician_ticket_intervention_create', ['id' => $ticket->getId()]),
+            'csrf_token_id' => 'add-intervention-'.$ticket->getId(),
+            'method' => 'POST',
+        ]);
+
+        return $this->renderTicketDetails($ticket, $categoryRepository, $interventionForm->createView());
+    }
+
+    #[Route('/technician/tickets/{id}/interventions', name: 'app_technician_ticket_intervention_create', methods: ['POST'])]
+    public function createIntervention(
+        Ticket $ticket,
+        Request $request,
+        CategoryRepository $categoryRepository,
+        EntityManagerInterface $entityManager,
+    ): Response {
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $intervention = new Intervention();
+        $form = $this->createForm(InterventionType::class, $intervention, [
+            'action' => $this->generateUrl('app_technician_ticket_intervention_create', ['id' => $ticket->getId()]),
+            'csrf_token_id' => 'add-intervention-'.$ticket->getId(),
+            'method' => 'POST',
+        ]);
+        $form->handleRequest($request);
+
+        if (!$form->isSubmitted() || !$form->isValid()) {
+            return $this->renderTicketDetails(
+                $ticket,
+                $categoryRepository,
+                $form->createView(),
+                new Response(status: Response::HTTP_UNPROCESSABLE_ENTITY),
+            );
+        }
+
+        $intervention
+            ->setTicket($ticket)
+            ->setTechnician($user)
+            ->setCreatedAt(new \DateTimeImmutable());
+
+        $entityManager->persist($intervention);
+        $entityManager->flush();
+
+        $this->addFlash('success', 'L’intervention a été ajoutée.');
+
+        return $this->redirectToRoute('app_technician_ticket_show', [
+            'id' => $ticket->getId(),
+        ]);
+    }
+
+    private function renderTicketDetails(
+        Ticket $ticket,
+        CategoryRepository $categoryRepository,
+        FormView $interventionForm,
+        ?Response $response = null,
+    ): Response {
         return $this->render('technician/ticket_show.html.twig', [
             'ticket' => $ticket,
             'categories' => $categoryRepository->findBy([], ['name' => 'ASC']),
@@ -40,7 +103,8 @@ final class TechnicianController extends AbstractController
             'can_update_status' => $this->isAssignedTechnician($ticket, $this->getUser()),
             'can_update_priority' => $this->isAssignedTechnician($ticket, $this->getUser()),
             'can_update_category' => $this->isAssignedTechnician($ticket, $this->getUser()),
-        ]);
+            'intervention_form' => $interventionForm,
+        ], $response);
     }
 
     #[Route('/technician/tickets/{id}/assign', name: 'app_technician_ticket_assign', methods: ['POST'])]

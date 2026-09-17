@@ -118,6 +118,14 @@
         {% endif %}
     {% endif %}
 
+    <h2>Ajouter une intervention</h2>
+
+    {{ form_start(intervention_form) }}
+        {{ form_errors(intervention_form) }}
+        {{ form_row(intervention_form.content, {label: 'Contenu'}) }}
+        <button type="submit">Ajouter l'intervention</button>
+    {{ form_end(intervention_form) }}
+
     <p>
         <a href="{{ path('app_technician_tickets') }}">Retour à la liste des tickets</a>
     </p>
