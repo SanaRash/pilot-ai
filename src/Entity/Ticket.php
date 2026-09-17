@@ -11,6 +11,21 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: TicketRepository::class)]
 class Ticket
 {
+    public const STATUS_OPEN = 'OPEN';
+    public const STATUS_IN_PROGRESS = 'IN_PROGRESS';
+    public const STATUS_RESOLVED = 'RESOLVED';
+    public const STATUS_CLOSED = 'CLOSED';
+
+    /**
+     * @var list<string>
+     */
+    public const ALLOWED_STATUSES = [
+        self::STATUS_OPEN,
+        self::STATUS_IN_PROGRESS,
+        self::STATUS_RESOLVED,
+        self::STATUS_CLOSED,
+    ];
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -108,6 +123,10 @@ class Ticket
 
     public function setStatus(string $status): static
     {
+        if (!in_array($status, self::ALLOWED_STATUSES, true)) {
+            throw new \InvalidArgumentException(sprintf('Statut de ticket invalide : "%s".', $status));
+        }
+
         $this->status = $status;
 
         return $this;

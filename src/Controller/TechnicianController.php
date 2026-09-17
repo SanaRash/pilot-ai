@@ -32,6 +32,7 @@ final class TechnicianController extends AbstractController
     {
         return $this->render('technician/ticket_show.html.twig', [
             'ticket' => $ticket,
+            'allowed_statuses' => Ticket::ALLOWED_STATUSES,
         ]);
     }
 
@@ -83,6 +84,47 @@ final class TechnicianController extends AbstractController
 
         return $this->redirectToRoute('app_technician_ticket_show', [
             'id' => $id,
+        ]);
+    }
+
+    #[Route('/technician/tickets/{id}/status', name: 'app_technician_ticket_status', methods: ['POST'])]
+    public function updateStatus(Ticket $ticket, Request $request, EntityManagerInterface $entityManager): Response
+    {
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $ticketId = $ticket->getId();
+        $userId = $user->getId();
+        $assignedToId = $ticket->getAssignedTo()?->getId();
+
+        if (null === $ticketId || null === $userId || $assignedToId !== $userId) {
+            throw $this->createAccessDeniedException('Seul le technicien assigné peut modifier le statut.');
+        }
+
+        if (!$this->isCsrfTokenValid('update-ticket-status-'.$ticketId, $request->request->getString('_token'))) {
+            throw $this->createAccessDeniedException('Jeton CSRF invalide.');
+        }
+
+        $status = $request->request->getString('status');
+
+        if (!in_array($status, Ticket::ALLOWED_STATUSES, true)) {
+            $this->addFlash('error', 'Le statut sélectionné est invalide.');
+
+            return $this->redirectToRoute('app_technician_ticket_show', [
+                'id' => $ticketId,
+            ]);
+        }
+
+        $ticket->setStatus($status);
+        $entityManager->flush();
+
+        $this->addFlash('success', 'Le statut du ticket a été mis à jour.');
+
+        return $this->redirectToRoute('app_technician_ticket_show', [
+            'id' => $ticketId,
         ]);
     }
 }

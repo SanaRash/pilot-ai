@@ -66,6 +66,21 @@
         </form>
     {% endif %}
 
+    {% if app.user and ticket.assignedTo and ticket.assignedTo.id == app.user.id %}
+        <form method="post" action="{{ path('app_technician_ticket_status', {id: ticket.id}) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('update-ticket-status-' ~ ticket.id) }}">
+
+            <label for="ticket-status">Statut</label>
+            <select id="ticket-status" name="status">
+                {% for status in allowed_statuses %}
+                    <option value="{{ status }}"{% if ticket.status == status %} selected{% endif %}>{{ status }}</option>
+                {% endfor %}
+            </select>
+
+            <button type="submit">Modifier le statut</button>
+        </form>
+    {% endif %}
+
     <p>
         <a href="{{ path('app_technician_tickets') }}">Retour à la liste des tickets</a>
     </p>

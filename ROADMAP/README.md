@@ -21,8 +21,8 @@
 
 ## Dernière tâche validée
 
-`TASK-3.5 — Assignation d'un ticket à un technicien`
+`TASK-3.6 — Modifier le statut d'un ticket`
 
 ## Prochaine tâche
 
-`TASK-3.6 — Statut` — ne pas commencer sans nouvelle validation humaine.
+`TASK-3.7 — Priorité` — ne pas commencer sans nouvelle validation humaine.

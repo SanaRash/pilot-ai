@@ -12,6 +12,7 @@
 - [x] TASK-3.3 — Liste des tickets côté technicien
 - [x] TASK-3.4 — Afficher le détail d'un ticket côté technicien
 - [x] TASK-3.5 — Assignation d'un ticket à un technicien
+- [x] TASK-3.6 — Modifier le statut d'un ticket
 
 ## Tâches validées
 
@@ -47,14 +48,24 @@ Critères d'acceptation :
 - [x] Code Review approuvée
 - [x] validation humaine
 
-## Suite
-
 ### TASK-3.6 — Statut
-- [ ] OPEN
-- [ ] IN_PROGRESS
-- [ ] RESOLVED
-- [ ] CLOSED
-- [ ] validation serveur
+
+Critères d'acceptation :
+- [x] OPEN
+- [x] IN_PROGRESS
+- [x] RESOLVED
+- [x] CLOSED
+- [x] validation serveur
+- [x] modification réservée au technicien assigné
+- [x] protection CSRF
+- [x] aucune priorité modifiée
+- [x] aucun TicketHistory créé
+- [x] QA approuvée
+- [x] Security Review approuvée
+- [x] Code Review approuvée
+- [x] validation humaine
+
+## Suite
 
 ### TASK-3.7 — Priorité
 - [ ] LOW
