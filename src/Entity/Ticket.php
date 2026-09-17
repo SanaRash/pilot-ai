@@ -26,6 +26,21 @@ class Ticket
         self::STATUS_CLOSED,
     ];
 
+    public const PRIORITY_LOW = 'LOW';
+    public const PRIORITY_MEDIUM = 'MEDIUM';
+    public const PRIORITY_HIGH = 'HIGH';
+    public const PRIORITY_URGENT = 'URGENT';
+
+    /**
+     * @var list<string>
+     */
+    public const ALLOWED_PRIORITIES = [
+        self::PRIORITY_LOW,
+        self::PRIORITY_MEDIUM,
+        self::PRIORITY_HIGH,
+        self::PRIORITY_URGENT,
+    ];
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -139,6 +154,10 @@ class Ticket
 
     public function setPriority(string $priority): static
     {
+        if (!in_array($priority, self::ALLOWED_PRIORITIES, true)) {
+            throw new \InvalidArgumentException(sprintf('Priorité de ticket invalide : "%s".', $priority));
+        }
+
         $this->priority = $priority;
 
         return $this;

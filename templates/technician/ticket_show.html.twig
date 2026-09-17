@@ -66,7 +66,7 @@
         </form>
     {% endif %}
 
-    {% if app.user and ticket.assignedTo and ticket.assignedTo.id == app.user.id %}
+    {% if can_update_status %}
         <form method="post" action="{{ path('app_technician_ticket_status', {id: ticket.id}) }}">
             <input type="hidden" name="_token" value="{{ csrf_token('update-ticket-status-' ~ ticket.id) }}">
 
@@ -78,6 +78,21 @@
             </select>
 
             <button type="submit">Modifier le statut</button>
+        </form>
+    {% endif %}
+
+    {% if can_update_priority %}
+        <form method="post" action="{{ path('app_technician_ticket_priority', {id: ticket.id}) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('update-ticket-priority-' ~ ticket.id) }}">
+
+            <label for="ticket-priority">Priorité</label>
+            <select id="ticket-priority" name="priority">
+                {% for priority in allowed_priorities %}
+                    <option value="{{ priority }}"{% if ticket.priority == priority %} selected{% endif %}>{{ priority }}</option>
+                {% endfor %}
+            </select>
+
+            <button type="submit">Modifier la priorité</button>
         </form>
     {% endif %}
 

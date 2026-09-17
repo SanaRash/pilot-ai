@@ -13,6 +13,7 @@
 - [x] TASK-3.4 — Afficher le détail d'un ticket côté technicien
 - [x] TASK-3.5 — Assignation d'un ticket à un technicien
 - [x] TASK-3.6 — Modifier le statut d'un ticket
+- [x] TASK-3.7 — Modifier la priorité d'un ticket
 
 ## Tâches validées
 
@@ -65,13 +66,24 @@ Critères d'acceptation :
 - [x] Code Review approuvée
 - [x] validation humaine
 
-## Suite
-
 ### TASK-3.7 — Priorité
-- [ ] LOW
-- [ ] MEDIUM
-- [ ] HIGH
-- [ ] URGENT
+
+Critères d'acceptation :
+- [x] LOW
+- [x] MEDIUM
+- [x] HIGH
+- [x] URGENT
+- [x] validation serveur
+- [x] modification réservée au technicien assigné
+- [x] protection CSRF
+- [x] aucun statut modifié
+- [x] aucun TicketHistory créé
+- [x] QA approuvée
+- [x] Security Review approuvée
+- [x] Code Review approuvée
+- [x] validation humaine
+
+## Suite
 
 ### TASK-3.8 — Catégorie
 - [ ] assigner une Category

@@ -11,6 +11,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Core\User\UserInterface;
 
 final class TechnicianController extends AbstractController
 {
@@ -33,6 +34,9 @@ final class TechnicianController extends AbstractController
         return $this->render('technician/ticket_show.html.twig', [
             'ticket' => $ticket,
             'allowed_statuses' => Ticket::ALLOWED_STATUSES,
+            'allowed_priorities' => Ticket::ALLOWED_PRIORITIES,
+            'can_update_status' => $this->isAssignedTechnician($ticket, $this->getUser()),
+            'can_update_priority' => $this->isAssignedTechnician($ticket, $this->getUser()),
         ]);
     }
 
@@ -97,10 +101,8 @@ final class TechnicianController extends AbstractController
         }
 
         $ticketId = $ticket->getId();
-        $userId = $user->getId();
-        $assignedToId = $ticket->getAssignedTo()?->getId();
 
-        if (null === $ticketId || null === $userId || $assignedToId !== $userId) {
+        if (null === $ticketId || !$this->isAssignedTechnician($ticket, $user)) {
             throw $this->createAccessDeniedException('Seul le technicien assigné peut modifier le statut.');
         }
 
@@ -126,5 +128,56 @@ final class TechnicianController extends AbstractController
         return $this->redirectToRoute('app_technician_ticket_show', [
             'id' => $ticketId,
         ]);
+    }
+
+    #[Route('/technician/tickets/{id}/priority', name: 'app_technician_ticket_priority', methods: ['POST'])]
+    public function updatePriority(Ticket $ticket, Request $request, EntityManagerInterface $entityManager): Response
+    {
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $ticketId = $ticket->getId();
+
+        if (null === $ticketId || !$this->isAssignedTechnician($ticket, $user)) {
+            throw $this->createAccessDeniedException('Seul le technicien assigné peut modifier la priorité.');
+        }
+
+        if (!$this->isCsrfTokenValid('update-ticket-priority-'.$ticketId, $request->request->getString('_token'))) {
+            throw $this->createAccessDeniedException('Jeton CSRF invalide.');
+        }
+
+        $priority = $request->request->getString('priority');
+
+        if (!in_array($priority, Ticket::ALLOWED_PRIORITIES, true)) {
+            $this->addFlash('error', 'La priorité sélectionnée est invalide.');
+
+            return $this->redirectToRoute('app_technician_ticket_show', [
+                'id' => $ticketId,
+            ]);
+        }
+
+        $ticket->setPriority($priority);
+        $entityManager->flush();
+
+        $this->addFlash('success', 'La priorité du ticket a été mise à jour.');
+
+        return $this->redirectToRoute('app_technician_ticket_show', [
+            'id' => $ticketId,
+        ]);
+    }
+
+    private function isAssignedTechnician(Ticket $ticket, ?UserInterface $user): bool
+    {
+        if (!$user instanceof User) {
+            return false;
+        }
+
+        $userId = $user->getId();
+        $assignedToId = $ticket->getAssignedTo()?->getId();
+
+        return null !== $userId && $assignedToId === $userId;
     }
 }
