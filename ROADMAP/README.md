@@ -21,8 +21,8 @@
 
 ## Dernière tâche validée
 
-`TASK-3.8 — Ajouter ou modifier la catégorie d'un ticket`
+`TASK-3.9 — Liste des tickets client`
 
 ## Prochaine tâche
 
-`TASK-3.9 — Liste des tickets client` — ne pas commencer sans nouvelle validation humaine.
+`TASK-3.10 — Détail d'un ticket client` — ne pas commencer sans nouvelle validation humaine.

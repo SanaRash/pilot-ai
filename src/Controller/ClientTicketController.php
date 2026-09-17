@@ -3,7 +3,9 @@
 namespace App\Controller;
 
 use App\Entity\Ticket;
+use App\Entity\User;
 use App\Form\TicketType;
+use App\Repository\TicketRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -12,6 +14,23 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class ClientTicketController extends AbstractController
 {
+    #[Route('/client/tickets', name: 'app_client_tickets', methods: ['GET'])]
+    public function tickets(TicketRepository $ticketRepository): Response
+    {
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            throw $this->createAccessDeniedException();
+        }
+
+        return $this->render('client_ticket/tickets.html.twig', [
+            'tickets' => $ticketRepository->findBy(
+                ['createdBy' => $user],
+                ['createdAt' => 'DESC'],
+            ),
+        ]);
+    }
+
     #[Route('/client/ticket/new', name: 'app_client_ticket_new')]
     public function new(
         Request $request,

@@ -15,6 +15,7 @@
 - [x] TASK-3.6 — Modifier le statut d'un ticket
 - [x] TASK-3.7 — Modifier la priorité d'un ticket
 - [x] TASK-3.8 — Ajouter ou modifier la catégorie d'un ticket
+- [x] TASK-3.9 — Liste des tickets client
 
 ## Tâches validées
 
@@ -99,10 +100,25 @@ Critères d'acceptation :
 - [x] Code Review approuvée
 - [x] validation humaine
 
-## Suite
-
 ### TASK-3.9 — Liste tickets client
-- [ ] le client ne voit que ses tickets
+
+Critères d'acceptation :
+- [x] route GET sous `/client`
+- [x] accès réservé ROLE_CLIENT
+- [x] filtrage createdBy = utilisateur connecté
+- [x] tri du plus récent au plus ancien
+- [x] aucun ticket d'un autre client affiché
+- [x] informations minimales affichées
+- [x] état vide explicite
+- [x] aucun lien vers le détail client
+- [x] aucune mutation métier
+- [x] aucun TicketHistory créé
+- [x] QA approuvée
+- [x] Security Review approuvée
+- [x] Code Review approuvée
+- [x] validation humaine
+
+## Suite
 
 ### TASK-3.10 — Détail ticket client
 - [ ] le client ne voit qu'un ticket dont il est propriétaire

@@ -1,0 +1,41 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Mes tickets | Pilot AI{% endblock %}
+
+{% block body %}
+
+    <h1>Mes tickets</h1>
+
+    {% if tickets is empty %}
+        <p>Vous n'avez aucun ticket pour le moment.</p>
+    {% else %}
+
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Titre</th>
+                    <th>Statut</th>
+                    <th>Priorité</th>
+                    <th>Catégorie</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for ticket in tickets %}
+                    <tr>
+                        <td>{{ ticket.id }}</td>
+                        <td>{{ ticket.title }}</td>
+                        <td>{{ ticket.status }}</td>
+                        <td>{{ ticket.priority }}</td>
+                        <td>{{ ticket.category ? ticket.category.name : 'Non catégorisé' }}</td>
+                        <td>{{ ticket.createdAt|date('d/m/Y H:i') }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+    {% endif %}
+
+{% endblock %}
