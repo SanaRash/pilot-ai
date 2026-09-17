@@ -29,7 +29,9 @@
                         <td>{{ ticket.id }}</td>
 
                         <td>
-                            {{ ticket.title }}
+                            <a href="{{ path('app_technician_ticket_show', {id: ticket.id}) }}">
+                                {{ ticket.title }}
+                            </a>
                         </td>
 
                         <td>

@@ -25,7 +25,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?string $email = null;
 
     /**
-     * @var list<string> The user roles
+     * @var list<string>
      */
     #[ORM\Column]
     private array $roles = [];
@@ -49,26 +49,49 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?\DateTimeImmutable $createdAt = null;
 
     /**
+     * Tickets créés par l'utilisateur.
+     *
      * @var Collection<int, Ticket>
      */
-    #[ORM\OneToMany(targetEntity: Ticket::class, mappedBy: 'createdBy')]
+    #[ORM\OneToMany(
+        targetEntity: Ticket::class,
+        mappedBy: 'createdBy'
+    )]
     private Collection $tickets;
+
+    /**
+     * Tickets assignés à cet utilisateur lorsqu'il est technicien.
+     *
+     * @var Collection<int, Ticket>
+     */
+    #[ORM\OneToMany(
+        targetEntity: Ticket::class,
+        mappedBy: 'assignedTo'
+    )]
+    private Collection $assignedTickets;
 
     /**
      * @var Collection<int, Intervention>
      */
-    #[ORM\OneToMany(targetEntity: Intervention::class, mappedBy: 'technician')]
+    #[ORM\OneToMany(
+        targetEntity: Intervention::class,
+        mappedBy: 'technician'
+    )]
     private Collection $interventions;
 
     /**
      * @var Collection<int, TicketHistory>
      */
-    #[ORM\OneToMany(targetEntity: TicketHistory::class, mappedBy: 'changedBy')]
+    #[ORM\OneToMany(
+        targetEntity: TicketHistory::class,
+        mappedBy: 'changedBy'
+    )]
     private Collection $ticketHistories;
 
     public function __construct()
     {
         $this->tickets = new ArrayCollection();
+        $this->assignedTickets = new ArrayCollection();
         $this->interventions = new ArrayCollection();
         $this->ticketHistories = new ArrayCollection();
     }
@@ -91,9 +114,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     }
 
     /**
-     * A visual identifier that represents this user.
-     *
-     * @see UserInterface
+     * Identifiant utilisé par Symfony Security.
      */
     public function getUserIdentifier(): string
     {
@@ -106,7 +127,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function getRoles(): array
     {
         $roles = $this->roles;
-        // guarantee every user at least has ROLE_USER
+
+        // Tout utilisateur Symfony possède au minimum ROLE_USER.
         $roles[] = 'ROLE_USER';
 
         return array_unique($roles);
@@ -138,12 +160,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     }
 
     /**
-     * Ensure the session doesn't contain actual password hashes by CRC32C-hashing them, as supported since Symfony 7.3.
+     * Empêche de stocker le hash réel du mot de passe dans la session.
      */
     public function __serialize(): array
     {
         $data = (array) $this;
-        $data["\0".self::class."\0password"] = hash('crc32c', $this->password);
+        $data["\0".self::class."\0password"] = hash(
+            'crc32c',
+            $this->password
+        );
 
         return $data;
     }
@@ -217,9 +242,37 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function removeTicket(Ticket $ticket): static
     {
         if ($this->tickets->removeElement($ticket)) {
-            // set the owning side to null (unless already changed)
             if ($ticket->getCreatedBy() === $this) {
                 $ticket->setCreatedBy(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Ticket>
+     */
+    public function getAssignedTickets(): Collection
+    {
+        return $this->assignedTickets;
+    }
+
+    public function addAssignedTicket(Ticket $ticket): static
+    {
+        if (!$this->assignedTickets->contains($ticket)) {
+            $this->assignedTickets->add($ticket);
+            $ticket->setAssignedTo($this);
+        }
+
+        return $this;
+    }
+
+    public function removeAssignedTicket(Ticket $ticket): static
+    {
+        if ($this->assignedTickets->removeElement($ticket)) {
+            if ($ticket->getAssignedTo() === $this) {
+                $ticket->setAssignedTo(null);
             }
         }
 
@@ -247,7 +300,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function removeIntervention(Intervention $intervention): static
     {
         if ($this->interventions->removeElement($intervention)) {
-            // set the owning side to null (unless already changed)
             if ($intervention->getTechnician() === $this) {
                 $intervention->setTechnician(null);
             }
@@ -277,7 +329,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function removeTicketHistory(TicketHistory $ticketHistory): static
     {
         if ($this->ticketHistories->removeElement($ticketHistory)) {
-            // set the owning side to null (unless already changed)
             if ($ticketHistory->getChangedBy() === $this) {
                 $ticketHistory->setChangedBy(null);
             }

@@ -44,8 +44,8 @@ class Ticket
     #[ORM\JoinColumn(nullable: false)]
     private ?User $createdBy = null;
 
-    #[ORM\ManyToOne(inversedBy: 'tickets')]
-    private ?User $assignedTo = null;
+   #[ORM\ManyToOne(inversedBy: 'assignedTickets')]
+   private ?User $assignedTo = null;
 
     /**
      * @var Collection<int, Intervention>
