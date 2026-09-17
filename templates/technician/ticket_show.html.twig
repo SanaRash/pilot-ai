@@ -118,6 +118,24 @@
         {% endif %}
     {% endif %}
 
+    <h2>Interventions</h2>
+
+    {% if interventions is empty %}
+        <p>Aucune intervention pour ce ticket.</p>
+    {% else %}
+        <ol>
+            {% for intervention in interventions %}
+                <li>
+                    <p>{{ intervention.content }}</p>
+                    <p>
+                        Par {{ intervention.technician.firstname }} {{ intervention.technician.lastname }}
+                        le {{ intervention.createdAt|date('d/m/Y H:i') }}
+                    </p>
+                </li>
+            {% endfor %}
+        </ol>
+    {% endif %}
+
     <h2>Ajouter une intervention</h2>
 
     {{ form_start(intervention_form) }}

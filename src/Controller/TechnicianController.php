@@ -7,6 +7,7 @@ use App\Entity\Ticket;
 use App\Entity\User;
 use App\Form\InterventionType;
 use App\Repository\CategoryRepository;
+use App\Repository\InterventionRepository;
 use App\Repository\TicketRepository;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
@@ -33,7 +34,11 @@ final class TechnicianController extends AbstractController
     }
 
     #[Route('/technician/tickets/{id}', name: 'app_technician_ticket_show', methods: ['GET'])]
-    public function show(Ticket $ticket, CategoryRepository $categoryRepository): Response
+    public function show(
+        Ticket $ticket,
+        CategoryRepository $categoryRepository,
+        InterventionRepository $interventionRepository,
+    ): Response
     {
         $interventionForm = $this->createForm(InterventionType::class, new Intervention(), [
             'action' => $this->generateUrl('app_technician_ticket_intervention_create', ['id' => $ticket->getId()]),
@@ -41,7 +46,12 @@ final class TechnicianController extends AbstractController
             'method' => 'POST',
         ]);
 
-        return $this->renderTicketDetails($ticket, $categoryRepository, $interventionForm->createView());
+        return $this->renderTicketDetails(
+            $ticket,
+            $categoryRepository,
+            $interventionRepository,
+            $interventionForm->createView(),
+        );
     }
 
     #[Route('/technician/tickets/{id}/interventions', name: 'app_technician_ticket_intervention_create', methods: ['POST'])]
@@ -49,6 +59,7 @@ final class TechnicianController extends AbstractController
         Ticket $ticket,
         Request $request,
         CategoryRepository $categoryRepository,
+        InterventionRepository $interventionRepository,
         EntityManagerInterface $entityManager,
     ): Response {
         $user = $this->getUser();
@@ -69,6 +80,7 @@ final class TechnicianController extends AbstractController
             return $this->renderTicketDetails(
                 $ticket,
                 $categoryRepository,
+                $interventionRepository,
                 $form->createView(),
                 new Response(status: Response::HTTP_UNPROCESSABLE_ENTITY),
             );
@@ -92,6 +104,7 @@ final class TechnicianController extends AbstractController
     private function renderTicketDetails(
         Ticket $ticket,
         CategoryRepository $categoryRepository,
+        InterventionRepository $interventionRepository,
         FormView $interventionForm,
         ?Response $response = null,
     ): Response {
@@ -104,6 +117,10 @@ final class TechnicianController extends AbstractController
             'can_update_priority' => $this->isAssignedTechnician($ticket, $this->getUser()),
             'can_update_category' => $this->isAssignedTechnician($ticket, $this->getUser()),
             'intervention_form' => $interventionForm,
+            'interventions' => $interventionRepository->findBy(
+                ['ticket' => $ticket],
+                ['createdAt' => 'ASC', 'id' => 'ASC'],
+            ),
         ], $response);
     }
 

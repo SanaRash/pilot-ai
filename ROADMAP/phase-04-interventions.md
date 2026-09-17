@@ -4,6 +4,6 @@
 - [x] intervention liée au ticket
 - [x] technician = utilisateur connecté
 - [x] createdAt automatique
-- [ ] liste chronologique des interventions
+- [x] liste chronologique des interventions
 - [ ] autorisation technicien
 - [ ] QA
