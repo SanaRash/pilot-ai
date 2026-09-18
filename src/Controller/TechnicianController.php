@@ -9,6 +9,7 @@ use App\Form\InterventionType;
 use App\Repository\CategoryRepository;
 use App\Repository\InterventionRepository;
 use App\Repository\TicketRepository;
+use App\Repository\TicketHistoryRepository;
 use App\Service\TicketHistoryService;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
@@ -21,6 +22,14 @@ use Symfony\Component\Security\Core\User\UserInterface;
 
 final class TechnicianController extends AbstractController
 {
+    private const array HISTORY_ACTION_LABELS = [
+        'TICKET_CREATED' => 'Ticket créé',
+        'STATUS_CHANGED' => 'Statut modifié',
+        'PRIORITY_CHANGED' => 'Priorité modifiée',
+        'TICKET_ASSIGNED' => 'Ticket assigné',
+        'CATEGORY_CHANGED' => 'Catégorie modifiée',
+    ];
+
     #[Route('/technician/tickets', name: 'app_technician_tickets')]
     public function tickets(TicketRepository $ticketRepository): Response
     {
@@ -39,6 +48,7 @@ final class TechnicianController extends AbstractController
         Ticket $ticket,
         CategoryRepository $categoryRepository,
         InterventionRepository $interventionRepository,
+        TicketHistoryRepository $ticketHistoryRepository,
     ): Response
     {
         $interventionForm = $this->createForm(InterventionType::class, new Intervention(), [
@@ -51,6 +61,7 @@ final class TechnicianController extends AbstractController
             $ticket,
             $categoryRepository,
             $interventionRepository,
+            $ticketHistoryRepository,
             $interventionForm->createView(),
         );
     }
@@ -61,6 +72,7 @@ final class TechnicianController extends AbstractController
         Request $request,
         CategoryRepository $categoryRepository,
         InterventionRepository $interventionRepository,
+        TicketHistoryRepository $ticketHistoryRepository,
         EntityManagerInterface $entityManager,
     ): Response {
         $user = $this->getUser();
@@ -86,6 +98,7 @@ final class TechnicianController extends AbstractController
                 $ticket,
                 $categoryRepository,
                 $interventionRepository,
+                $ticketHistoryRepository,
                 $form->createView(),
                 new Response(status: Response::HTTP_UNPROCESSABLE_ENTITY),
             );
@@ -110,6 +123,7 @@ final class TechnicianController extends AbstractController
         Ticket $ticket,
         CategoryRepository $categoryRepository,
         InterventionRepository $interventionRepository,
+        TicketHistoryRepository $ticketHistoryRepository,
         FormView $interventionForm,
         ?Response $response = null,
     ): Response {
@@ -127,6 +141,11 @@ final class TechnicianController extends AbstractController
                 ['ticket' => $ticket],
                 ['createdAt' => 'ASC', 'id' => 'ASC'],
             ),
+            'ticket_history' => $ticketHistoryRepository->findBy(
+                ['ticket' => $ticket],
+                ['createdAt' => 'ASC', 'id' => 'ASC'],
+            ),
+            'history_action_labels' => self::HISTORY_ACTION_LABELS,
         ], $response);
     }
 

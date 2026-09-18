@@ -136,6 +136,57 @@
         </ol>
     {% endif %}
 
+    <h2>Historique</h2>
+
+    {% if ticket_history is empty %}
+        <p>Aucun historique pour ce ticket.</p>
+    {% else %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Action</th>
+                    <th>Ancienne valeur</th>
+                    <th>Nouvelle valeur</th>
+                    <th>Auteur</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for history in ticket_history %}
+                    <tr>
+                        <td>{{ history_action_labels[history.action] ?? history.action }}</td>
+                        <td>
+                            {% if history.action == 'TICKET_ASSIGNED' %}
+                                {{ history.oldValue is null ? 'Non assigné' : 'Technicien #' ~ history.oldValue }}
+                            {% elseif history.action == 'CATEGORY_CHANGED' %}
+                                {{ history.oldValue is null ? 'Non catégorisé' : 'Catégorie #' ~ history.oldValue }}
+                            {% else %}
+                                {{ history.oldValue ?? '—' }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if history.action == 'TICKET_ASSIGNED' and history.newValue is not null %}
+                                Technicien #{{ history.newValue }}
+                            {% elseif history.action == 'CATEGORY_CHANGED' and history.newValue is not null %}
+                                Catégorie #{{ history.newValue }}
+                            {% else %}
+                                {{ history.newValue ?? '—' }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if history.changedBy %}
+                                {{ history.changedBy.firstname }} {{ history.changedBy.lastname }}
+                            {% else %}
+                                Système
+                            {% endif %}
+                        </td>
+                        <td>{{ history.createdAt|date('d/m/Y H:i') }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
     {% if can_add_intervention %}
         <h2>Ajouter une intervention</h2>
 

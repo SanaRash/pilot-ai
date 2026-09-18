@@ -7,5 +7,5 @@
 - [x] tracer assignation
 - [x] tracer catégorie
 - [x] changedBy
-- [ ] affichage chronologique
+- [x] affichage chronologique
 - [ ] aucune suppression automatique de l'historique
