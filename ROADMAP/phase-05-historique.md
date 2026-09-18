@@ -5,7 +5,7 @@
 - [x] tracer changement statut
 - [x] tracer changement priorité
 - [x] tracer assignation
-- [ ] tracer catégorie
+- [x] tracer catégorie
 - [ ] changedBy
 - [ ] affichage chronologique
 - [ ] aucune suppression automatique de l'historique

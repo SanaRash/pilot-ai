@@ -318,7 +318,7 @@ final class TechnicianController extends AbstractController
         Ticket $ticket,
         Request $request,
         CategoryRepository $categoryRepository,
-        EntityManagerInterface $entityManager,
+        TicketHistoryService $ticketHistoryService,
     ): Response {
         $user = $this->getUser();
 
@@ -359,8 +359,24 @@ final class TechnicianController extends AbstractController
             ]);
         }
 
+        $oldCategoryId = $ticket->getCategory()?->getId();
+
+        if ($oldCategoryId === $categoryId) {
+            $this->addFlash('info', 'Le ticket possède déjà cette catégorie.');
+
+            return $this->redirectToRoute('app_technician_ticket_show', [
+                'id' => $ticketId,
+            ]);
+        }
+
         $ticket->setCategory($category);
-        $entityManager->flush();
+        $ticketHistoryService->record(
+            $ticket,
+            'CATEGORY_CHANGED',
+            null === $oldCategoryId ? null : (string) $oldCategoryId,
+            (string) $categoryId,
+            $user,
+        );
 
         $this->addFlash('success', 'La catégorie du ticket a été mise à jour.');
 
