@@ -6,6 +6,7 @@ use App\Entity\Ticket;
 use App\Entity\User;
 use App\Form\TicketType;
 use App\Repository\TicketRepository;
+use App\Service\TicketHistoryService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -57,7 +58,8 @@ final class ClientTicketController extends AbstractController
     #[Route('/client/ticket/new', name: 'app_client_ticket_new')]
     public function new(
         Request $request,
-        EntityManagerInterface $entityManager
+        EntityManagerInterface $entityManager,
+        TicketHistoryService $ticketHistoryService,
     ): Response {
         $ticket = new Ticket();
 
@@ -77,7 +79,13 @@ final class ClientTicketController extends AbstractController
             $ticket->setCreatedBy($user);
 
             $entityManager->persist($ticket);
-            $entityManager->flush();
+            $ticketHistoryService->record(
+                $ticket,
+                'TICKET_CREATED',
+                null,
+                null,
+                $user,
+            );
 
             $this->addFlash(
                 'success',
