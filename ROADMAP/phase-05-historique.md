@@ -4,7 +4,7 @@
 - [x] tracer création ticket si pertinent
 - [x] tracer changement statut
 - [x] tracer changement priorité
-- [ ] tracer assignation
+- [x] tracer assignation
 - [ ] tracer catégorie
 - [ ] changedBy
 - [ ] affichage chronologique

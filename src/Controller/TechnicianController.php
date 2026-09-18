@@ -131,11 +131,21 @@ final class TechnicianController extends AbstractController
     }
 
     #[Route('/technician/tickets/{id}/assign', name: 'app_technician_ticket_assign', methods: ['POST'])]
-    public function assign(int $id, Request $request, EntityManagerInterface $entityManager): Response
-    {
+    public function assign(
+        int $id,
+        Request $request,
+        EntityManagerInterface $entityManager,
+        TicketHistoryService $ticketHistoryService,
+    ): Response {
         $user = $this->getUser();
 
         if (!$user instanceof User) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $userId = $user->getId();
+
+        if (null === $userId) {
             throw $this->createAccessDeniedException();
         }
 
@@ -154,7 +164,13 @@ final class TechnicianController extends AbstractController
 
             if (null === $ticket->getAssignedTo()) {
                 $ticket->setAssignedTo($user);
-                $entityManager->flush();
+                $ticketHistoryService->record(
+                    $ticket,
+                    'TICKET_ASSIGNED',
+                    null,
+                    (string) $userId,
+                    $user,
+                );
                 $flashType = 'success';
                 $flashMessage = 'Le ticket vous a été assigné.';
             } elseif ($ticket->getAssignedTo() === $user) {
