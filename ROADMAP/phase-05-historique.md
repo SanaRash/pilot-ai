@@ -1,6 +1,6 @@
 # Phase 05 — Historique
 
-- [ ] créer `TicketHistoryService`
+- [x] créer `TicketHistoryService`
 - [ ] tracer création ticket si pertinent
 - [ ] tracer changement statut
 - [ ] tracer changement priorité
