@@ -5,5 +5,5 @@
 - [x] technician = utilisateur connecté
 - [x] createdAt automatique
 - [x] liste chronologique des interventions
-- [ ] autorisation technicien
+- [x] autorisation technicien
 - [ ] QA

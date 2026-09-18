@@ -68,6 +68,10 @@ final class TechnicianController extends AbstractController
             throw $this->createAccessDeniedException();
         }
 
+        if (!$this->isAssignedTechnician($ticket, $user)) {
+            throw $this->createAccessDeniedException('Seul le technicien assigné peut ajouter une intervention.');
+        }
+
         $intervention = new Intervention();
         $form = $this->createForm(InterventionType::class, $intervention, [
             'action' => $this->generateUrl('app_technician_ticket_intervention_create', ['id' => $ticket->getId()]),
@@ -116,6 +120,7 @@ final class TechnicianController extends AbstractController
             'can_update_status' => $this->isAssignedTechnician($ticket, $this->getUser()),
             'can_update_priority' => $this->isAssignedTechnician($ticket, $this->getUser()),
             'can_update_category' => $this->isAssignedTechnician($ticket, $this->getUser()),
+            'can_add_intervention' => $this->isAssignedTechnician($ticket, $this->getUser()),
             'intervention_form' => $interventionForm,
             'interventions' => $interventionRepository->findBy(
                 ['ticket' => $ticket],
