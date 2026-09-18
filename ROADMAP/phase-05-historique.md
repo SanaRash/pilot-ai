@@ -3,7 +3,7 @@
 - [x] créer `TicketHistoryService`
 - [x] tracer création ticket si pertinent
 - [x] tracer changement statut
-- [ ] tracer changement priorité
+- [x] tracer changement priorité
 - [ ] tracer assignation
 - [ ] tracer catégorie
 - [ ] changedBy

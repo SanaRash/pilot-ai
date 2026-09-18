@@ -240,8 +240,11 @@ final class TechnicianController extends AbstractController
     }
 
     #[Route('/technician/tickets/{id}/priority', name: 'app_technician_ticket_priority', methods: ['POST'])]
-    public function updatePriority(Ticket $ticket, Request $request, EntityManagerInterface $entityManager): Response
-    {
+    public function updatePriority(
+        Ticket $ticket,
+        Request $request,
+        TicketHistoryService $ticketHistoryService,
+    ): Response {
         $user = $this->getUser();
 
         if (!$user instanceof User) {
@@ -268,8 +271,24 @@ final class TechnicianController extends AbstractController
             ]);
         }
 
+        $oldPriority = $ticket->getPriority();
+
+        if ($oldPriority === $priority) {
+            $this->addFlash('info', 'Le ticket possède déjà cette priorité.');
+
+            return $this->redirectToRoute('app_technician_ticket_show', [
+                'id' => $ticketId,
+            ]);
+        }
+
         $ticket->setPriority($priority);
-        $entityManager->flush();
+        $ticketHistoryService->record(
+            $ticket,
+            'PRIORITY_CHANGED',
+            $oldPriority,
+            $priority,
+            $user,
+        );
 
         $this->addFlash('success', 'La priorité du ticket a été mise à jour.');
 
