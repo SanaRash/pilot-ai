@@ -13,7 +13,7 @@
 - [x] [Phase 02 — Authentification et rôles](phase-02-authentification-roles.md)
 - [x] [Phase 03 — Flux Tickets MVP](phase-03-tickets.md)
 - [x] [Phase 04 — Interventions](phase-04-interventions.md)
-- [ ] [Phase 05 — Historique](phase-05-historique.md)
+- [x] [Phase 05 — Historique](phase-05-historique.md)
 - [ ] [Phase 06 — Intelligence artificielle](phase-06-ia.md)
 - [ ] [Phase 07 — n8n et ingestion e-mail](phase-07-n8n.md)
 - [ ] [Phase 08 — Dashboards et UI](phase-08-dashboard-ui.md)
@@ -21,8 +21,8 @@
 
 ## Dernière tâche validée
 
-`Phase 04 / Tâche 7 — QA de la phase Interventions`
+`Phase 05 / Tâche 9 — Ne jamais supprimer automatiquement l'historique`
 
 ## Prochaine tâche
 
-`Phase 05 — Historique` — ne pas commencer sans nouvelle validation humaine.
+`Phase 06 — Intelligence artificielle` — ne pas commencer sans nouvelle validation humaine.

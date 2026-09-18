@@ -8,4 +8,4 @@
 - [x] tracer catégorie
 - [x] changedBy
 - [x] affichage chronologique
-- [ ] aucune suppression automatique de l'historique
+- [x] aucune suppression automatique de l'historique
