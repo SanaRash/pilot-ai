@@ -2,7 +2,7 @@
 
 ## Architecture
 
-- [ ] `AIProviderInterface`
+- [x] `AIProviderInterface`
 - [ ] provider interchangeable OpenRouter/Mistral/OpenAI selon choix final
 - [ ] `AIService`
 
