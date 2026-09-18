@@ -6,4 +6,4 @@
 - [x] createdAt automatique
 - [x] liste chronologique des interventions
 - [x] autorisation technicien
-- [ ] QA
+- [x] QA
