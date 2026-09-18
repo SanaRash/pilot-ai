@@ -6,6 +6,6 @@
 - [x] tracer changement priorité
 - [x] tracer assignation
 - [x] tracer catégorie
-- [ ] changedBy
+- [x] changedBy
 - [ ] affichage chronologique
 - [ ] aucune suppression automatique de l'historique
