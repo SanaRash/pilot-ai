@@ -2,7 +2,7 @@
 
 - [x] créer `TicketHistoryService`
 - [x] tracer création ticket si pertinent
-- [ ] tracer changement statut
+- [x] tracer changement statut
 - [ ] tracer changement priorité
 - [ ] tracer assignation
 - [ ] tracer catégorie

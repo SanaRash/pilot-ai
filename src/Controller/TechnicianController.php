@@ -9,6 +9,7 @@ use App\Form\InterventionType;
 use App\Repository\CategoryRepository;
 use App\Repository\InterventionRepository;
 use App\Repository\TicketRepository;
+use App\Service\TicketHistoryService;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -181,8 +182,11 @@ final class TechnicianController extends AbstractController
     }
 
     #[Route('/technician/tickets/{id}/status', name: 'app_technician_ticket_status', methods: ['POST'])]
-    public function updateStatus(Ticket $ticket, Request $request, EntityManagerInterface $entityManager): Response
-    {
+    public function updateStatus(
+        Ticket $ticket,
+        Request $request,
+        TicketHistoryService $ticketHistoryService,
+    ): Response {
         $user = $this->getUser();
 
         if (!$user instanceof User) {
@@ -209,8 +213,24 @@ final class TechnicianController extends AbstractController
             ]);
         }
 
+        $oldStatus = $ticket->getStatus();
+
+        if ($oldStatus === $status) {
+            $this->addFlash('info', 'Le ticket possède déjà ce statut.');
+
+            return $this->redirectToRoute('app_technician_ticket_show', [
+                'id' => $ticketId,
+            ]);
+        }
+
         $ticket->setStatus($status);
-        $entityManager->flush();
+        $ticketHistoryService->record(
+            $ticket,
+            'STATUS_CHANGED',
+            $oldStatus,
+            $status,
+            $user,
+        );
 
         $this->addFlash('success', 'Le statut du ticket a été mis à jour.');
 
