@@ -19,5 +19,13 @@ services:
     App\:
         resource: '../src/'
 
+    App\AI\OpenRouterProvider:
+        arguments:
+            $apiKey: '%env(string:OPENROUTER_API_KEY)%'
+            $model: '%env(string:OPENROUTER_MODEL)%'
+
+    App\AI\AIProviderInterface:
+        alias: App\AI\OpenRouterProvider
+
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
