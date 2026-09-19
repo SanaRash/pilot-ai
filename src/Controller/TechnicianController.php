@@ -6,6 +6,7 @@ use App\Entity\Intervention;
 use App\Entity\Ticket;
 use App\Entity\User;
 use App\Form\InterventionType;
+use App\Repository\AIAnalysisRepository;
 use App\Repository\CategoryRepository;
 use App\Repository\InterventionRepository;
 use App\Repository\TicketRepository;
@@ -49,6 +50,7 @@ final class TechnicianController extends AbstractController
         CategoryRepository $categoryRepository,
         InterventionRepository $interventionRepository,
         TicketHistoryRepository $ticketHistoryRepository,
+        AIAnalysisRepository $aiAnalysisRepository,
     ): Response
     {
         $interventionForm = $this->createForm(InterventionType::class, new Intervention(), [
@@ -62,6 +64,7 @@ final class TechnicianController extends AbstractController
             $categoryRepository,
             $interventionRepository,
             $ticketHistoryRepository,
+            $aiAnalysisRepository,
             $interventionForm->createView(),
         );
     }
@@ -73,6 +76,7 @@ final class TechnicianController extends AbstractController
         CategoryRepository $categoryRepository,
         InterventionRepository $interventionRepository,
         TicketHistoryRepository $ticketHistoryRepository,
+        AIAnalysisRepository $aiAnalysisRepository,
         EntityManagerInterface $entityManager,
     ): Response {
         $user = $this->getUser();
@@ -99,6 +103,7 @@ final class TechnicianController extends AbstractController
                 $categoryRepository,
                 $interventionRepository,
                 $ticketHistoryRepository,
+                $aiAnalysisRepository,
                 $form->createView(),
                 new Response(status: Response::HTTP_UNPROCESSABLE_ENTITY),
             );
@@ -124,6 +129,7 @@ final class TechnicianController extends AbstractController
         CategoryRepository $categoryRepository,
         InterventionRepository $interventionRepository,
         TicketHistoryRepository $ticketHistoryRepository,
+        AIAnalysisRepository $aiAnalysisRepository,
         FormView $interventionForm,
         ?Response $response = null,
     ): Response {
@@ -144,6 +150,10 @@ final class TechnicianController extends AbstractController
             'ticket_history' => $ticketHistoryRepository->findBy(
                 ['ticket' => $ticket],
                 ['createdAt' => 'ASC', 'id' => 'ASC'],
+            ),
+            'ai_analyses' => $aiAnalysisRepository->findBy(
+                ['ticket' => $ticket],
+                ['createdAt' => 'DESC', 'id' => 'DESC'],
             ),
             'history_action_labels' => self::HISTORY_ACTION_LABELS,
         ], $response);

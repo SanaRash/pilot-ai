@@ -118,6 +118,53 @@
         {% endif %}
     {% endif %}
 
+    <h2>Analyses IA</h2>
+
+    <p>Ces éléments sont des recommandations. Toute décision reste prise manuellement par un technicien.</p>
+
+    {% if ai_analyses is empty %}
+        <p>Aucune analyse IA disponible pour ce ticket.</p>
+    {% else %}
+        {% for analysis in ai_analyses %}
+            <article>
+                <h3>Analyse du {{ analysis.createdAt|date('d/m/Y H:i') }}</h3>
+
+                <dl>
+                    <dt>Résumé</dt>
+                    <dd>{{ analysis.summary ?? '—' }}</dd>
+
+                    <dt>Priorité proposée</dt>
+                    <dd>{{ analysis.suggestedPriority ?? '—' }}</dd>
+
+                    <dt>Catégorie proposée</dt>
+                    <dd>{{ analysis.suggestedCategory ?? '—' }}</dd>
+                </dl>
+
+                <h4>Mots-clés</h4>
+                {% if analysis.keywords is empty %}
+                    <p>—</p>
+                {% else %}
+                    <ul>
+                        {% for keyword in analysis.keywords %}
+                            <li>{{ keyword }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+
+                <h4>Suggestions</h4>
+                {% if analysis.suggestions is empty %}
+                    <p>—</p>
+                {% else %}
+                    <ul>
+                        {% for suggestion in analysis.suggestions %}
+                            <li>{{ suggestion }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </article>
+        {% endfor %}
+    {% endif %}
+
     <h2>Interventions</h2>
 
     {% if interventions is empty %}
