@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\AI;
 
 use App\AI\Exception\AIValidationException;
+use App\Entity\AIAnalysis;
 use App\Entity\Ticket;
+use Doctrine\ORM\EntityManagerInterface;
 
 final readonly class AIService
 {
@@ -16,8 +18,10 @@ final readonly class AIService
     private const MAX_SUGGESTIONS = 10;
     private const MAX_SUGGESTION_LENGTH = 1_000;
 
-    public function __construct(private AIProviderInterface $provider)
-    {
+    public function __construct(
+        private AIProviderInterface $provider,
+        private EntityManagerInterface $entityManager,
+    ) {
     }
 
     public function analyzeTicket(Ticket $ticket): AIAnalysisResult
@@ -31,6 +35,18 @@ final readonly class AIService
         ));
 
         $this->validateResult($result);
+
+        $analysis = (new AIAnalysis())
+            ->setSummary($result->summary)
+            ->setSuggestedPriority($result->suggestedPriority)
+            ->setSuggestedCategory($result->suggestedCategory)
+            ->setKeywords($result->keywords)
+            ->setSuggestions($result->suggestions)
+            ->setCreatedAt(new \DateTimeImmutable())
+            ->setTicket($ticket);
+
+        $this->entityManager->persist($analysis);
+        $this->entityManager->flush();
 
         return $result;
     }

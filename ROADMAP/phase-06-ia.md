@@ -13,7 +13,7 @@
 - [x] catégorie proposée
 - [x] mots-clés
 - [x] suggestions
-- [ ] sauvegarde `AIAnalysis`
+- [x] sauvegarde `AIAnalysis`
 
 ## Règles
 
