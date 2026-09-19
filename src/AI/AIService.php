@@ -49,7 +49,7 @@ final readonly class AIService
         $this->validateRequiredResultText($result->summary, self::MAX_SUMMARY_LENGTH, 'résumé');
         $this->validateNullableText($result->suggestedCategory, self::MAX_CATEGORY_LENGTH, 'catégorie suggérée');
 
-        if (null !== $result->suggestedPriority && !in_array($result->suggestedPriority, Ticket::ALLOWED_PRIORITIES, true)) {
+        if (null === $result->suggestedPriority || !in_array($result->suggestedPriority, Ticket::ALLOWED_PRIORITIES, true)) {
             throw new AIValidationException('La priorité suggérée par le provider IA est invalide.');
         }
 

@@ -107,8 +107,8 @@ final class OpenRouterProvider implements AIProviderInterface
                                 'maxLength' => self::MAX_SUMMARY_LENGTH,
                             ],
                             'suggestedPriority' => [
-                                'type' => ['string', 'null'],
-                                'enum' => [...self::ALLOWED_PRIORITIES, null],
+                                'type' => 'string',
+                                'enum' => self::ALLOWED_PRIORITIES,
                             ],
                             'suggestedCategory' => [
                                 'type' => ['string', 'null'],
@@ -196,10 +196,10 @@ final class OpenRouterProvider implements AIProviderInterface
         }
 
         $summary = $this->validateRequiredString($analysis['summary'], self::MAX_SUMMARY_LENGTH);
-        $suggestedPriority = $this->validateNullableString($analysis['suggestedPriority'], 20);
+        $suggestedPriority = $this->validateRequiredString($analysis['suggestedPriority'], 20);
         $suggestedCategory = $this->validateNullableString($analysis['suggestedCategory'], self::MAX_CATEGORY_LENGTH);
 
-        if (null !== $suggestedPriority && !in_array($suggestedPriority, self::ALLOWED_PRIORITIES, true)) {
+        if (!in_array($suggestedPriority, self::ALLOWED_PRIORITIES, true)) {
             throw new AIProviderException('Le provider IA a retourné une priorité invalide.');
         }
 

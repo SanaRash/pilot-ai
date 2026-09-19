@@ -9,7 +9,7 @@
 ## Analyse ticket
 
 - [x] résumé
-- [ ] priorité proposée
+- [x] priorité proposée
 - [ ] catégorie proposée
 - [ ] mots-clés
 - [ ] suggestions

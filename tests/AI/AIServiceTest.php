@@ -99,13 +99,15 @@ $actualResult = (new AIService($provider))->analyzeTicket($ticket);
 
 ensureService($expectedResult === $actualResult, 'AIService must return the exact provider result.');
 ensureService(1 === $provider->callCount, 'Provider must be called exactly once.');
+ensureService(Ticket::PRIORITY_HIGH === $actualResult->suggestedPriority, 'Suggested priority must be returned unchanged.');
 ensureService('Impossible de se connecter' === $provider->receivedInput?->title, 'Unexpected title sent to provider.');
 ensureService('Une erreur apparaît après la saisie du mot de passe.' === $provider->receivedInput?->description, 'Unexpected description sent to provider.');
+ensureService(Ticket::PRIORITY_MEDIUM === $ticket->getPriority(), 'Ticket priority must remain unchanged.');
 ensureService($ticketBefore === serialize($ticket), 'Ticket was mutated after a successful analysis.');
 
 $validBoundaryResult = new AIAnalysisResult(
     summary: str_repeat('é', 2_000),
-    suggestedPriority: null,
+    suggestedPriority: Ticket::PRIORITY_HIGH,
     suggestedCategory: str_repeat('é', 100),
     keywords: array_fill(0, 20, str_repeat('é', 100)),
     suggestions: array_fill(0, 10, str_repeat('é', 1_000)),
@@ -136,20 +138,33 @@ foreach ($invalidInputTickets as $scenario => $invalidTicket) {
     ensureService($invalidTicketBefore === serialize($invalidTicket), sprintf('Ticket mutated for %s.', $scenario));
 }
 
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', 'CRITICAL', null, null, null), 'invalid priority');
-analyzeInvalidResult(new AIAnalysisResult(null, null, null, null, null), 'null summary');
-analyzeInvalidResult(new AIAnalysisResult('', null, null, null, null), 'empty summary');
-analyzeInvalidResult(new AIAnalysisResult(" \t\n", null, null, null, null), 'ASCII blank summary');
-analyzeInvalidResult(new AIAnalysisResult("\u{00A0}\u{2003}", null, null, null, null), 'Unicode blank summary');
-analyzeInvalidResult(new AIAnalysisResult(str_repeat('é', 2_001), null, null, null, null), 'oversized summary');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', null, str_repeat('é', 101), null, null), 'oversized category');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', null, null, array_fill(0, 21, 'keyword'), null), 'too many keywords');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', null, null, [str_repeat('é', 101)], null), 'oversized keyword');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', null, null, ['valid', 42], null), 'non-string keyword');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', null, null, ['key' => 'value'], null), 'non-list keywords');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', null, null, null, array_fill(0, 11, 'suggestion')), 'too many suggestions');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', null, null, null, [str_repeat('é', 1_001)]), 'oversized suggestion');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', null, null, null, ['valid', 42]), 'non-string suggestion');
+foreach ([Ticket::PRIORITY_LOW, Ticket::PRIORITY_MEDIUM, Ticket::PRIORITY_HIGH, Ticket::PRIORITY_URGENT] as $allowedPriority) {
+    $allowedResult = new AIAnalysisResult('Résumé valide', $allowedPriority, null, null, null);
+    $allowedProvider = new StubAIProvider($allowedResult);
+
+    ensureService(
+        $allowedResult === (new AIService($allowedProvider))->analyzeTicket(validTicket()),
+        sprintf('Allowed priority %s was not returned unchanged.', $allowedPriority),
+    );
+}
+
+foreach ([null, '', 'CRITICAL', 'high'] as $invalidPriority) {
+    analyzeInvalidResult(new AIAnalysisResult('Résumé valide', $invalidPriority, null, null, null), 'invalid priority');
+}
+
+analyzeInvalidResult(new AIAnalysisResult(null, Ticket::PRIORITY_HIGH, null, null, null), 'null summary');
+analyzeInvalidResult(new AIAnalysisResult('', Ticket::PRIORITY_HIGH, null, null, null), 'empty summary');
+analyzeInvalidResult(new AIAnalysisResult(" \t\n", Ticket::PRIORITY_HIGH, null, null, null), 'ASCII blank summary');
+analyzeInvalidResult(new AIAnalysisResult("\u{00A0}\u{2003}", Ticket::PRIORITY_HIGH, null, null, null), 'Unicode blank summary');
+analyzeInvalidResult(new AIAnalysisResult(str_repeat('é', 2_001), Ticket::PRIORITY_HIGH, null, null, null), 'oversized summary');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, str_repeat('é', 101), null, null), 'oversized category');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, null, array_fill(0, 21, 'keyword'), null), 'too many keywords');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, null, [str_repeat('é', 101)], null), 'oversized keyword');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, null, ['valid', 42], null), 'non-string keyword');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, null, ['key' => 'value'], null), 'non-list keywords');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, null, null, array_fill(0, 11, 'suggestion')), 'too many suggestions');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, null, null, [str_repeat('é', 1_001)]), 'oversized suggestion');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, null, null, ['valid', 42]), 'non-string suggestion');
 
 $providerException = new AIProviderException('Provider unavailable');
 $failingProvider = new StubAIProvider(exception: $providerException);

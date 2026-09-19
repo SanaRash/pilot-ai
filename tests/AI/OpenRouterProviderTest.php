@@ -95,6 +95,8 @@ ensure(!array_key_exists('models', $requestPayload), 'Model fallbacks must not b
 ensure(true === $requestPayload['response_format']['json_schema']['strict'], 'JSON schema must be strict.');
 ensure(false === $requestPayload['response_format']['json_schema']['schema']['additionalProperties'], 'Additional properties must be forbidden.');
 ensure('string' === $requestPayload['response_format']['json_schema']['schema']['properties']['summary']['type'], 'Summary must be required and non-nullable.');
+ensure('string' === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestedPriority']['type'], 'Suggested priority must be required and non-nullable.');
+ensure(['LOW', 'MEDIUM', 'HIGH', 'URGENT'] === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestedPriority']['enum'], 'Suggested priority enum is invalid.');
 ensure(1_000 === $requestPayload['max_tokens'], 'Output tokens must be bounded.');
 ensure(2_000 === $requestPayload['response_format']['json_schema']['schema']['properties']['summary']['maxLength'], 'Summary length must be bounded.');
 ensure(100 === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestedCategory']['maxLength'], 'Category length must match persistence constraints.');
@@ -105,7 +107,7 @@ ensure(15.0 === $capturedOptions['options']['max_duration'], 'Maximum duration m
 
 $unicodeBoundaries = [
     'summary' => str_repeat('é', 2_000),
-    'suggestedPriority' => null,
+    'suggestedPriority' => 'HIGH',
     'suggestedCategory' => str_repeat('é', 100),
     'keywords' => array_fill(0, 20, str_repeat('é', 100)),
     'suggestions' => array_fill(0, 10, str_repeat('é', 1_000)),
@@ -114,12 +116,24 @@ $unicodeResult = providerWithResponse(new MockResponse(responseBody($unicodeBoun
     ->analyze(new AIAnalysisInput('a', 'b'));
 ensure(str_repeat('é', 100) === $unicodeResult->suggestedCategory, 'Valid Unicode boundary was rejected.');
 
-$invalidPriority = validAnalysis();
-$invalidPriority['suggestedPriority'] = 'CRITICAL';
-expectProviderException(
-    fn () => providerWithResponse(new MockResponse(responseBody($invalidPriority)))->analyze(new AIAnalysisInput('a', 'b')),
-    'invalid priority',
-);
+foreach (['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as $allowedPriority) {
+    $analysisWithAllowedPriority = validAnalysis();
+    $analysisWithAllowedPriority['suggestedPriority'] = $allowedPriority;
+    $priorityResult = providerWithResponse(new MockResponse(responseBody($analysisWithAllowedPriority)))
+        ->analyze(new AIAnalysisInput('a', 'b'));
+
+    ensure($allowedPriority === $priorityResult->suggestedPriority, sprintf('Allowed priority %s was modified.', $allowedPriority));
+}
+
+foreach ([null, '', 'CRITICAL', 'high'] as $invalidPriorityValue) {
+    $analysisWithInvalidPriority = validAnalysis();
+    $analysisWithInvalidPriority['suggestedPriority'] = $invalidPriorityValue;
+
+    expectProviderException(
+        fn () => providerWithResponse(new MockResponse(responseBody($analysisWithInvalidPriority)))->analyze(new AIAnalysisInput('a', 'b')),
+        'invalid priority',
+    );
+}
 
 $extraProperty = validAnalysis();
 $extraProperty['unexpected'] = true;
