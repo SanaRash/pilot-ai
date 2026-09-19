@@ -17,7 +17,7 @@
 
 ## Règles
 
-- [ ] aucune fermeture automatique
+- [x] aucune fermeture automatique
 - [ ] aucune assignation automatique
 - [ ] validation humaine par technicien
 - [ ] erreurs provider gérées proprement
