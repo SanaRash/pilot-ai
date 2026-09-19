@@ -97,6 +97,7 @@ ensure(false === $requestPayload['response_format']['json_schema']['schema']['ad
 ensure('string' === $requestPayload['response_format']['json_schema']['schema']['properties']['summary']['type'], 'Summary must be required and non-nullable.');
 ensure('string' === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestedPriority']['type'], 'Suggested priority must be required and non-nullable.');
 ensure(['LOW', 'MEDIUM', 'HIGH', 'URGENT'] === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestedPriority']['enum'], 'Suggested priority enum is invalid.');
+ensure('string' === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestedCategory']['type'], 'Suggested category must be required and non-nullable.');
 ensure(1_000 === $requestPayload['max_tokens'], 'Output tokens must be bounded.');
 ensure(2_000 === $requestPayload['response_format']['json_schema']['schema']['properties']['summary']['maxLength'], 'Summary length must be bounded.');
 ensure(100 === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestedCategory']['maxLength'], 'Category length must match persistence constraints.');
@@ -155,6 +156,16 @@ expectProviderException(
     fn () => providerWithResponse(new MockResponse(responseBody($oversizedCategory)))->analyze(new AIAnalysisInput('a', 'b')),
     'oversized category',
 );
+
+foreach ([null, '', " \t\n", "\u{00A0}\u{2003}"] as $invalidCategory) {
+    $analysisWithInvalidCategory = validAnalysis();
+    $analysisWithInvalidCategory['suggestedCategory'] = $invalidCategory;
+
+    expectProviderException(
+        fn () => providerWithResponse(new MockResponse(responseBody($analysisWithInvalidCategory)))->analyze(new AIAnalysisInput('a', 'b')),
+        'missing or blank category',
+    );
+}
 
 $oversizedUnicodeSummary = validAnalysis();
 $oversizedUnicodeSummary['summary'] = str_repeat('é', 2_001);

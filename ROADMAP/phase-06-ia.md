@@ -10,7 +10,7 @@
 
 - [x] résumé
 - [x] priorité proposée
-- [ ] catégorie proposée
+- [x] catégorie proposée
 - [ ] mots-clés
 - [ ] suggestions
 - [ ] sauvegarde `AIAnalysis`

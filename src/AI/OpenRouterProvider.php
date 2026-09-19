@@ -111,7 +111,7 @@ final class OpenRouterProvider implements AIProviderInterface
                                 'enum' => self::ALLOWED_PRIORITIES,
                             ],
                             'suggestedCategory' => [
-                                'type' => ['string', 'null'],
+                                'type' => 'string',
                                 'maxLength' => self::MAX_CATEGORY_LENGTH,
                             ],
                             'keywords' => [
@@ -197,7 +197,7 @@ final class OpenRouterProvider implements AIProviderInterface
 
         $summary = $this->validateRequiredString($analysis['summary'], self::MAX_SUMMARY_LENGTH);
         $suggestedPriority = $this->validateRequiredString($analysis['suggestedPriority'], 20);
-        $suggestedCategory = $this->validateNullableString($analysis['suggestedCategory'], self::MAX_CATEGORY_LENGTH);
+        $suggestedCategory = $this->validateRequiredString($analysis['suggestedCategory'], self::MAX_CATEGORY_LENGTH);
 
         if (!in_array($suggestedPriority, self::ALLOWED_PRIORITIES, true)) {
             throw new AIProviderException('Le provider IA a retourné une priorité invalide.');
@@ -218,15 +218,6 @@ final class OpenRouterProvider implements AIProviderInterface
                 self::MAX_SUGGESTION_LENGTH,
             ),
         );
-    }
-
-    private function validateNullableString(mixed $value, int $maxLength): ?string
-    {
-        if (null !== $value && (!is_string($value) || mb_strlen($value, 'UTF-8') > $maxLength)) {
-            throw new AIProviderException('Le provider IA a retourné une valeur invalide.');
-        }
-
-        return $value;
     }
 
     private function validateRequiredString(mixed $value, int $maxLength): string

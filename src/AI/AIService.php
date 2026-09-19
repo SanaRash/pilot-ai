@@ -47,7 +47,7 @@ final readonly class AIService
     private function validateResult(AIAnalysisResult $result): void
     {
         $this->validateRequiredResultText($result->summary, self::MAX_SUMMARY_LENGTH, 'résumé');
-        $this->validateNullableText($result->suggestedCategory, self::MAX_CATEGORY_LENGTH, 'catégorie suggérée');
+        $this->validateRequiredResultText($result->suggestedCategory, self::MAX_CATEGORY_LENGTH, 'catégorie suggérée');
 
         if (null === $result->suggestedPriority || !in_array($result->suggestedPriority, Ticket::ALLOWED_PRIORITIES, true)) {
             throw new AIValidationException('La priorité suggérée par le provider IA est invalide.');
@@ -65,13 +65,6 @@ final readonly class AIService
             self::MAX_SUGGESTION_LENGTH,
             'suggestions',
         );
-    }
-
-    private function validateNullableText(?string $value, int $maxLength, string $field): void
-    {
-        if (null !== $value && mb_strlen($value, 'UTF-8') > $maxLength) {
-            throw new AIValidationException(sprintf('Le champ %s retourné par le provider IA est invalide.', $field));
-        }
     }
 
     private function validateRequiredResultText(?string $value, int $maxLength, string $field): void
