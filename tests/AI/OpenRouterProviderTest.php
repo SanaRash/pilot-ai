@@ -94,6 +94,7 @@ ensure(true === $requestPayload['provider']['zdr'], 'ZDR must be required.');
 ensure(!array_key_exists('models', $requestPayload), 'Model fallbacks must not be configured.');
 ensure(true === $requestPayload['response_format']['json_schema']['strict'], 'JSON schema must be strict.');
 ensure(false === $requestPayload['response_format']['json_schema']['schema']['additionalProperties'], 'Additional properties must be forbidden.');
+ensure('string' === $requestPayload['response_format']['json_schema']['schema']['properties']['summary']['type'], 'Summary must be required and non-nullable.');
 ensure(1_000 === $requestPayload['max_tokens'], 'Output tokens must be bounded.');
 ensure(2_000 === $requestPayload['response_format']['json_schema']['schema']['properties']['summary']['maxLength'], 'Summary length must be bounded.');
 ensure(100 === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestedCategory']['maxLength'], 'Category length must match persistence constraints.');
@@ -147,6 +148,16 @@ expectProviderException(
     fn () => providerWithResponse(new MockResponse(responseBody($oversizedUnicodeSummary)))->analyze(new AIAnalysisInput('a', 'b')),
     'oversized Unicode summary',
 );
+
+foreach ([null, '', " \t\n", "\u{00A0}\u{2003}"] as $invalidSummary) {
+    $analysisWithInvalidSummary = validAnalysis();
+    $analysisWithInvalidSummary['summary'] = $invalidSummary;
+
+    expectProviderException(
+        fn () => providerWithResponse(new MockResponse(responseBody($analysisWithInvalidSummary)))->analyze(new AIAnalysisInput('a', 'b')),
+        'missing or blank summary',
+    );
+}
 
 $tooManyKeywords = validAnalysis();
 $tooManyKeywords['keywords'] = array_fill(0, 21, 'keyword');

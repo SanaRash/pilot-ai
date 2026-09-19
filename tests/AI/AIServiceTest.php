@@ -136,16 +136,20 @@ foreach ($invalidInputTickets as $scenario => $invalidTicket) {
     ensureService($invalidTicketBefore === serialize($invalidTicket), sprintf('Ticket mutated for %s.', $scenario));
 }
 
-analyzeInvalidResult(new AIAnalysisResult(null, 'CRITICAL', null, null, null), 'invalid priority');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', 'CRITICAL', null, null, null), 'invalid priority');
+analyzeInvalidResult(new AIAnalysisResult(null, null, null, null, null), 'null summary');
+analyzeInvalidResult(new AIAnalysisResult('', null, null, null, null), 'empty summary');
+analyzeInvalidResult(new AIAnalysisResult(" \t\n", null, null, null, null), 'ASCII blank summary');
+analyzeInvalidResult(new AIAnalysisResult("\u{00A0}\u{2003}", null, null, null, null), 'Unicode blank summary');
 analyzeInvalidResult(new AIAnalysisResult(str_repeat('é', 2_001), null, null, null, null), 'oversized summary');
-analyzeInvalidResult(new AIAnalysisResult(null, null, str_repeat('é', 101), null, null), 'oversized category');
-analyzeInvalidResult(new AIAnalysisResult(null, null, null, array_fill(0, 21, 'keyword'), null), 'too many keywords');
-analyzeInvalidResult(new AIAnalysisResult(null, null, null, [str_repeat('é', 101)], null), 'oversized keyword');
-analyzeInvalidResult(new AIAnalysisResult(null, null, null, ['valid', 42], null), 'non-string keyword');
-analyzeInvalidResult(new AIAnalysisResult(null, null, null, ['key' => 'value'], null), 'non-list keywords');
-analyzeInvalidResult(new AIAnalysisResult(null, null, null, null, array_fill(0, 11, 'suggestion')), 'too many suggestions');
-analyzeInvalidResult(new AIAnalysisResult(null, null, null, null, [str_repeat('é', 1_001)]), 'oversized suggestion');
-analyzeInvalidResult(new AIAnalysisResult(null, null, null, null, ['valid', 42]), 'non-string suggestion');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', null, str_repeat('é', 101), null, null), 'oversized category');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', null, null, array_fill(0, 21, 'keyword'), null), 'too many keywords');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', null, null, [str_repeat('é', 101)], null), 'oversized keyword');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', null, null, ['valid', 42], null), 'non-string keyword');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', null, null, ['key' => 'value'], null), 'non-list keywords');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', null, null, null, array_fill(0, 11, 'suggestion')), 'too many suggestions');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', null, null, null, [str_repeat('é', 1_001)]), 'oversized suggestion');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', null, null, null, ['valid', 42]), 'non-string suggestion');
 
 $providerException = new AIProviderException('Provider unavailable');
 $failingProvider = new StubAIProvider(exception: $providerException);

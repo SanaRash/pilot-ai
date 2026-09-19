@@ -103,7 +103,7 @@ final class OpenRouterProvider implements AIProviderInterface
                         'type' => 'object',
                         'properties' => [
                             'summary' => [
-                                'type' => ['string', 'null'],
+                                'type' => 'string',
                                 'maxLength' => self::MAX_SUMMARY_LENGTH,
                             ],
                             'suggestedPriority' => [
@@ -195,7 +195,7 @@ final class OpenRouterProvider implements AIProviderInterface
             throw new AIProviderException('Le provider IA a retourné une analyse incomplète.');
         }
 
-        $summary = $this->validateNullableString($analysis['summary'], self::MAX_SUMMARY_LENGTH);
+        $summary = $this->validateRequiredString($analysis['summary'], self::MAX_SUMMARY_LENGTH);
         $suggestedPriority = $this->validateNullableString($analysis['suggestedPriority'], 20);
         $suggestedCategory = $this->validateNullableString($analysis['suggestedCategory'], self::MAX_CATEGORY_LENGTH);
 
@@ -224,6 +224,19 @@ final class OpenRouterProvider implements AIProviderInterface
     {
         if (null !== $value && (!is_string($value) || mb_strlen($value, 'UTF-8') > $maxLength)) {
             throw new AIProviderException('Le provider IA a retourné une valeur invalide.');
+        }
+
+        return $value;
+    }
+
+    private function validateRequiredString(mixed $value, int $maxLength): string
+    {
+        if (
+            !is_string($value)
+            || 1 !== preg_match('/\S/u', $value)
+            || mb_strlen($value, 'UTF-8') > $maxLength
+        ) {
+            throw new AIProviderException('Le provider IA a retourné une valeur requise invalide.');
         }
 
         return $value;
