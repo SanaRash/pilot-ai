@@ -11,7 +11,7 @@
 - [x] résumé
 - [x] priorité proposée
 - [x] catégorie proposée
-- [ ] mots-clés
+- [x] mots-clés
 - [ ] suggestions
 - [ ] sauvegarde `AIAnalysis`
 

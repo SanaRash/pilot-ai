@@ -53,7 +53,7 @@ final readonly class AIService
             throw new AIValidationException('La priorité suggérée par le provider IA est invalide.');
         }
 
-        $this->validateNullableTextList(
+        $this->validateRequiredTextList(
             $result->keywords,
             self::MAX_KEYWORDS,
             self::MAX_KEYWORD_LENGTH,
@@ -75,6 +75,31 @@ final readonly class AIService
             || mb_strlen($value, 'UTF-8') > $maxLength
         ) {
             throw new AIValidationException(sprintf('Le champ %s retourné par le provider IA est invalide.', $field));
+        }
+    }
+
+    /**
+     * @param array<array-key, mixed>|null $values
+     */
+    private function validateRequiredTextList(?array $values, int $maxItems, int $maxItemLength, string $field): void
+    {
+        if (null === $values || [] === $values || !array_is_list($values) || count($values) > $maxItems) {
+            throw new AIValidationException(sprintf('Le champ %s retourné par le provider IA est invalide.', $field));
+        }
+
+        $seen = [];
+
+        foreach ($values as $value) {
+            if (
+                !is_string($value)
+                || 1 !== preg_match('/\S/u', $value)
+                || mb_strlen($value, 'UTF-8') > $maxItemLength
+                || in_array($value, $seen, true)
+            ) {
+                throw new AIValidationException(sprintf('Le champ %s retourné par le provider IA est invalide.', $field));
+            }
+
+            $seen[] = $value;
         }
     }
 

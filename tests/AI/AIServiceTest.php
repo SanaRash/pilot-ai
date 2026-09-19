@@ -101,6 +101,7 @@ ensureService($expectedResult === $actualResult, 'AIService must return the exac
 ensureService(1 === $provider->callCount, 'Provider must be called exactly once.');
 ensureService(Ticket::PRIORITY_HIGH === $actualResult->suggestedPriority, 'Suggested priority must be returned unchanged.');
 ensureService('Accès' === $actualResult->suggestedCategory, 'Suggested category must be returned unchanged.');
+ensureService(['connexion', 'mot de passe'] === $actualResult->keywords, 'Keywords must be returned unchanged and in the same order.');
 ensureService('Impossible de se connecter' === $provider->receivedInput?->title, 'Unexpected title sent to provider.');
 ensureService('Une erreur apparaît après la saisie du mot de passe.' === $provider->receivedInput?->description, 'Unexpected description sent to provider.');
 ensureService(Ticket::PRIORITY_MEDIUM === $ticket->getPriority(), 'Ticket priority must remain unchanged.');
@@ -111,7 +112,10 @@ $validBoundaryResult = new AIAnalysisResult(
     summary: str_repeat('é', 2_000),
     suggestedPriority: Ticket::PRIORITY_HIGH,
     suggestedCategory: str_repeat('é', 100),
-    keywords: array_fill(0, 20, str_repeat('é', 100)),
+    keywords: array_map(
+        static fn (int $index): string => str_repeat('é', 97).sprintf('%03d', $index),
+        range(1, 20),
+    ),
     suggestions: array_fill(0, 10, str_repeat('é', 1_000)),
 );
 $boundaryProvider = new StubAIProvider($validBoundaryResult);
@@ -141,7 +145,7 @@ foreach ($invalidInputTickets as $scenario => $invalidTicket) {
 }
 
 foreach ([Ticket::PRIORITY_LOW, Ticket::PRIORITY_MEDIUM, Ticket::PRIORITY_HIGH, Ticket::PRIORITY_URGENT] as $allowedPriority) {
-    $allowedResult = new AIAnalysisResult('Résumé valide', $allowedPriority, 'Catégorie valide', null, null);
+    $allowedResult = new AIAnalysisResult('Résumé valide', $allowedPriority, 'Catégorie valide', ['mot-clé'], null);
     $allowedProvider = new StubAIProvider($allowedResult);
 
     ensureService(
@@ -151,26 +155,45 @@ foreach ([Ticket::PRIORITY_LOW, Ticket::PRIORITY_MEDIUM, Ticket::PRIORITY_HIGH, 
 }
 
 foreach ([null, '', 'CRITICAL', 'high'] as $invalidPriority) {
-    analyzeInvalidResult(new AIAnalysisResult('Résumé valide', $invalidPriority, 'Catégorie valide', null, null), 'invalid priority');
+    analyzeInvalidResult(new AIAnalysisResult('Résumé valide', $invalidPriority, 'Catégorie valide', ['mot-clé'], null), 'invalid priority');
 }
 
-analyzeInvalidResult(new AIAnalysisResult(null, Ticket::PRIORITY_HIGH, 'Catégorie valide', null, null), 'null summary');
-analyzeInvalidResult(new AIAnalysisResult('', Ticket::PRIORITY_HIGH, 'Catégorie valide', null, null), 'empty summary');
-analyzeInvalidResult(new AIAnalysisResult(" \t\n", Ticket::PRIORITY_HIGH, 'Catégorie valide', null, null), 'ASCII blank summary');
-analyzeInvalidResult(new AIAnalysisResult("\u{00A0}\u{2003}", Ticket::PRIORITY_HIGH, 'Catégorie valide', null, null), 'Unicode blank summary');
-analyzeInvalidResult(new AIAnalysisResult(str_repeat('é', 2_001), Ticket::PRIORITY_HIGH, 'Catégorie valide', null, null), 'oversized summary');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, null, null, null), 'null category');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, '', null, null), 'empty category');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, " \t\n", null, null), 'ASCII blank category');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, "\u{00A0}\u{2003}", null, null), 'Unicode blank category');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, str_repeat('é', 101), null, null), 'oversized category');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', array_fill(0, 21, 'keyword'), null), 'too many keywords');
+analyzeInvalidResult(new AIAnalysisResult(null, Ticket::PRIORITY_HIGH, 'Catégorie valide', ['mot-clé'], null), 'null summary');
+analyzeInvalidResult(new AIAnalysisResult('', Ticket::PRIORITY_HIGH, 'Catégorie valide', ['mot-clé'], null), 'empty summary');
+analyzeInvalidResult(new AIAnalysisResult(" \t\n", Ticket::PRIORITY_HIGH, 'Catégorie valide', ['mot-clé'], null), 'ASCII blank summary');
+analyzeInvalidResult(new AIAnalysisResult("\u{00A0}\u{2003}", Ticket::PRIORITY_HIGH, 'Catégorie valide', ['mot-clé'], null), 'Unicode blank summary');
+analyzeInvalidResult(new AIAnalysisResult(str_repeat('é', 2_001), Ticket::PRIORITY_HIGH, 'Catégorie valide', ['mot-clé'], null), 'oversized summary');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, null, ['mot-clé'], null), 'null category');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, '', ['mot-clé'], null), 'empty category');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, " \t\n", ['mot-clé'], null), 'ASCII blank category');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, "\u{00A0}\u{2003}", ['mot-clé'], null), 'Unicode blank category');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, str_repeat('é', 101), ['mot-clé'], null), 'oversized category');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', null, null), 'null keywords');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', [], null), 'empty keywords');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', [''], null), 'empty keyword');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', [" \t\n"], null), 'ASCII blank keyword');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', ["\u{00A0}\u{2003}"], null), 'Unicode blank keyword');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', ['duplicate', 'duplicate'], null), 'duplicate keywords');
+analyzeInvalidResult(new AIAnalysisResult(
+    'Résumé valide',
+    Ticket::PRIORITY_HIGH,
+    'Catégorie valide',
+    array_map(static fn (int $index): string => 'keyword-'.$index, range(1, 21)),
+    null,
+), 'too many keywords');
 analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', [str_repeat('é', 101)], null), 'oversized keyword');
 analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', ['valid', 42], null), 'non-string keyword');
 analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', ['key' => 'value'], null), 'non-list keywords');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', null, array_fill(0, 11, 'suggestion')), 'too many suggestions');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', null, [str_repeat('é', 1_001)]), 'oversized suggestion');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', null, ['valid', 42]), 'non-string suggestion');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', ['mot-clé'], array_fill(0, 11, 'suggestion')), 'too many suggestions');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', ['mot-clé'], [str_repeat('é', 1_001)]), 'oversized suggestion');
+analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', ['mot-clé'], ['valid', 42]), 'non-string suggestion');
+
+$caseDistinctResult = new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', ['Erreur', 'erreur'], null);
+$caseDistinctProvider = new StubAIProvider($caseDistinctResult);
+ensureService(
+    $caseDistinctResult === (new AIService($caseDistinctProvider))->analyzeTicket(validTicket()),
+    'Strictly distinct keyword casing must be accepted unchanged.',
+);
 
 $providerException = new AIProviderException('Provider unavailable');
 $failingProvider = new StubAIProvider(exception: $providerException);

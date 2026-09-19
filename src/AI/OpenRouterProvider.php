@@ -115,10 +115,13 @@ final class OpenRouterProvider implements AIProviderInterface
                                 'maxLength' => self::MAX_CATEGORY_LENGTH,
                             ],
                             'keywords' => [
-                                'type' => ['array', 'null'],
+                                'type' => 'array',
+                                'minItems' => 1,
                                 'maxItems' => self::MAX_KEYWORDS,
+                                'uniqueItems' => true,
                                 'items' => [
                                     'type' => 'string',
+                                    'minLength' => 1,
                                     'maxLength' => self::MAX_KEYWORD_LENGTH,
                                 ],
                             ],
@@ -207,7 +210,7 @@ final class OpenRouterProvider implements AIProviderInterface
             summary: $summary,
             suggestedPriority: $suggestedPriority,
             suggestedCategory: $suggestedCategory,
-            keywords: $this->validateNullableStringList(
+            keywords: $this->validateRequiredStringList(
                 $analysis['keywords'],
                 self::MAX_KEYWORDS,
                 self::MAX_KEYWORD_LENGTH,
@@ -228,6 +231,33 @@ final class OpenRouterProvider implements AIProviderInterface
             || mb_strlen($value, 'UTF-8') > $maxLength
         ) {
             throw new AIProviderException('Le provider IA a retourné une valeur requise invalide.');
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function validateRequiredStringList(mixed $value, int $maxItems, int $maxItemLength): array
+    {
+        if (!is_array($value) || !array_is_list($value) || [] === $value || count($value) > $maxItems) {
+            throw new AIProviderException('Le provider IA a retourné une liste requise invalide.');
+        }
+
+        $seen = [];
+
+        foreach ($value as $item) {
+            if (
+                !is_string($item)
+                || 1 !== preg_match('/\S/u', $item)
+                || mb_strlen($item, 'UTF-8') > $maxItemLength
+                || in_array($item, $seen, true)
+            ) {
+                throw new AIProviderException('Le provider IA a retourné une liste requise invalide.');
+            }
+
+            $seen[] = $item;
         }
 
         return $value;

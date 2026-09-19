@@ -101,7 +101,12 @@ ensure('string' === $requestPayload['response_format']['json_schema']['schema'][
 ensure(1_000 === $requestPayload['max_tokens'], 'Output tokens must be bounded.');
 ensure(2_000 === $requestPayload['response_format']['json_schema']['schema']['properties']['summary']['maxLength'], 'Summary length must be bounded.');
 ensure(100 === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestedCategory']['maxLength'], 'Category length must match persistence constraints.');
+ensure('array' === $requestPayload['response_format']['json_schema']['schema']['properties']['keywords']['type'], 'Keywords must be required and non-nullable.');
+ensure(1 === $requestPayload['response_format']['json_schema']['schema']['properties']['keywords']['minItems'], 'At least one keyword must be required.');
 ensure(20 === $requestPayload['response_format']['json_schema']['schema']['properties']['keywords']['maxItems'], 'Keyword count must be bounded.');
+ensure(true === $requestPayload['response_format']['json_schema']['schema']['properties']['keywords']['uniqueItems'], 'Keywords must be unique.');
+ensure(1 === $requestPayload['response_format']['json_schema']['schema']['properties']['keywords']['items']['minLength'], 'Keywords must not be empty.');
+ensure(100 === $requestPayload['response_format']['json_schema']['schema']['properties']['keywords']['items']['maxLength'], 'Keyword length must be bounded.');
 ensure(10 === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestions']['maxItems'], 'Suggestion count must be bounded.');
 ensure(15.0 === $capturedOptions['options']['timeout'], 'Timeout must be explicit.');
 ensure(15.0 === $capturedOptions['options']['max_duration'], 'Maximum duration must be explicit.');
@@ -110,12 +115,28 @@ $unicodeBoundaries = [
     'summary' => str_repeat('é', 2_000),
     'suggestedPriority' => 'HIGH',
     'suggestedCategory' => str_repeat('é', 100),
-    'keywords' => array_fill(0, 20, str_repeat('é', 100)),
+    'keywords' => array_map(
+        static fn (int $index): string => str_repeat('é', 97).sprintf('%03d', $index),
+        range(1, 20),
+    ),
     'suggestions' => array_fill(0, 10, str_repeat('é', 1_000)),
 ];
 $unicodeResult = providerWithResponse(new MockResponse(responseBody($unicodeBoundaries)))
     ->analyze(new AIAnalysisInput('a', 'b'));
 ensure(str_repeat('é', 100) === $unicodeResult->suggestedCategory, 'Valid Unicode boundary was rejected.');
+ensure($unicodeBoundaries['keywords'] === $unicodeResult->keywords, 'Valid keyword boundary or order was modified.');
+
+$singleKeyword = validAnalysis();
+$singleKeyword['keywords'] = ['unique'];
+$singleKeywordResult = providerWithResponse(new MockResponse(responseBody($singleKeyword)))
+    ->analyze(new AIAnalysisInput('a', 'b'));
+ensure(['unique'] === $singleKeywordResult->keywords, 'A single keyword must be accepted unchanged.');
+
+$caseDistinctKeywords = validAnalysis();
+$caseDistinctKeywords['keywords'] = ['Erreur', 'erreur'];
+$caseDistinctResult = providerWithResponse(new MockResponse(responseBody($caseDistinctKeywords)))
+    ->analyze(new AIAnalysisInput('a', 'b'));
+ensure(['Erreur', 'erreur'] === $caseDistinctResult->keywords, 'Strictly distinct keyword casing must be preserved.');
 
 foreach (['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as $allowedPriority) {
     $analysisWithAllowedPriority = validAnalysis();
@@ -185,7 +206,10 @@ foreach ([null, '', " \t\n", "\u{00A0}\u{2003}"] as $invalidSummary) {
 }
 
 $tooManyKeywords = validAnalysis();
-$tooManyKeywords['keywords'] = array_fill(0, 21, 'keyword');
+$tooManyKeywords['keywords'] = array_map(
+    static fn (int $index): string => 'keyword-'.$index,
+    range(1, 21),
+);
 expectProviderException(
     fn () => providerWithResponse(new MockResponse(responseBody($tooManyKeywords)))->analyze(new AIAnalysisInput('a', 'b')),
     'too many keywords',
@@ -197,6 +221,16 @@ expectProviderException(
     fn () => providerWithResponse(new MockResponse(responseBody($oversizedUnicodeKeyword)))->analyze(new AIAnalysisInput('a', 'b')),
     'oversized Unicode keyword',
 );
+
+foreach ([null, [], [''], [" \t\n"], ["\u{00A0}\u{2003}"], ['duplicate', 'duplicate'], ['key' => 'value']] as $invalidKeywords) {
+    $analysisWithInvalidKeywords = validAnalysis();
+    $analysisWithInvalidKeywords['keywords'] = $invalidKeywords;
+
+    expectProviderException(
+        fn () => providerWithResponse(new MockResponse(responseBody($analysisWithInvalidKeywords)))->analyze(new AIAnalysisInput('a', 'b')),
+        'invalid required keywords',
+    );
+}
 
 $oversizedSuggestion = validAnalysis();
 $oversizedSuggestion['suggestions'] = [str_repeat('é', 1_001)];
