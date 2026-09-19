@@ -107,7 +107,12 @@ ensure(20 === $requestPayload['response_format']['json_schema']['schema']['prope
 ensure(true === $requestPayload['response_format']['json_schema']['schema']['properties']['keywords']['uniqueItems'], 'Keywords must be unique.');
 ensure(1 === $requestPayload['response_format']['json_schema']['schema']['properties']['keywords']['items']['minLength'], 'Keywords must not be empty.');
 ensure(100 === $requestPayload['response_format']['json_schema']['schema']['properties']['keywords']['items']['maxLength'], 'Keyword length must be bounded.');
+ensure('array' === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestions']['type'], 'Suggestions must be required and non-nullable.');
+ensure(1 === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestions']['minItems'], 'At least one suggestion must be required.');
 ensure(10 === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestions']['maxItems'], 'Suggestion count must be bounded.');
+ensure(true === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestions']['uniqueItems'], 'Suggestions must be unique.');
+ensure(1 === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestions']['items']['minLength'], 'Suggestions must not be empty.');
+ensure(1_000 === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestions']['items']['maxLength'], 'Suggestion length must be bounded.');
 ensure(15.0 === $capturedOptions['options']['timeout'], 'Timeout must be explicit.');
 ensure(15.0 === $capturedOptions['options']['max_duration'], 'Maximum duration must be explicit.');
 
@@ -119,12 +124,16 @@ $unicodeBoundaries = [
         static fn (int $index): string => str_repeat('é', 97).sprintf('%03d', $index),
         range(1, 20),
     ),
-    'suggestions' => array_fill(0, 10, str_repeat('é', 1_000)),
+    'suggestions' => array_map(
+        static fn (int $index): string => str_repeat('é', 997).sprintf('%03d', $index),
+        range(1, 10),
+    ),
 ];
 $unicodeResult = providerWithResponse(new MockResponse(responseBody($unicodeBoundaries)))
     ->analyze(new AIAnalysisInput('a', 'b'));
 ensure(str_repeat('é', 100) === $unicodeResult->suggestedCategory, 'Valid Unicode boundary was rejected.');
 ensure($unicodeBoundaries['keywords'] === $unicodeResult->keywords, 'Valid keyword boundary or order was modified.');
+ensure($unicodeBoundaries['suggestions'] === $unicodeResult->suggestions, 'Valid suggestion boundary or order was modified.');
 
 $singleKeyword = validAnalysis();
 $singleKeyword['keywords'] = ['unique'];
@@ -137,6 +146,18 @@ $caseDistinctKeywords['keywords'] = ['Erreur', 'erreur'];
 $caseDistinctResult = providerWithResponse(new MockResponse(responseBody($caseDistinctKeywords)))
     ->analyze(new AIAnalysisInput('a', 'b'));
 ensure(['Erreur', 'erreur'] === $caseDistinctResult->keywords, 'Strictly distinct keyword casing must be preserved.');
+
+$singleSuggestion = validAnalysis();
+$singleSuggestion['suggestions'] = ['A'];
+$singleSuggestionResult = providerWithResponse(new MockResponse(responseBody($singleSuggestion)))
+    ->analyze(new AIAnalysisInput('a', 'b'));
+ensure(['A'] === $singleSuggestionResult->suggestions, 'A single one-character suggestion must be accepted unchanged.');
+
+$caseDistinctSuggestions = validAnalysis();
+$caseDistinctSuggestions['suggestions'] = ['Vérifier le service', 'vérifier le service'];
+$caseDistinctSuggestionsResult = providerWithResponse(new MockResponse(responseBody($caseDistinctSuggestions)))
+    ->analyze(new AIAnalysisInput('a', 'b'));
+ensure($caseDistinctSuggestions['suggestions'] === $caseDistinctSuggestionsResult->suggestions, 'Strictly distinct suggestion casing must be preserved.');
 
 foreach (['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as $allowedPriority) {
     $analysisWithAllowedPriority = validAnalysis();
@@ -237,6 +258,33 @@ $oversizedSuggestion['suggestions'] = [str_repeat('é', 1_001)];
 expectProviderException(
     fn () => providerWithResponse(new MockResponse(responseBody($oversizedSuggestion)))->analyze(new AIAnalysisInput('a', 'b')),
     'oversized suggestion',
+);
+
+$tooManySuggestions = validAnalysis();
+$tooManySuggestions['suggestions'] = array_map(
+    static fn (int $index): string => 'Suggestion '.$index,
+    range(1, 11),
+);
+expectProviderException(
+    fn () => providerWithResponse(new MockResponse(responseBody($tooManySuggestions)))->analyze(new AIAnalysisInput('a', 'b')),
+    'too many suggestions',
+);
+
+foreach ([null, [], [''], [" \t\n"], ["\u{00A0}\u{2003}"], ['duplicate', 'duplicate'], ['key' => 'value']] as $invalidSuggestions) {
+    $analysisWithInvalidSuggestions = validAnalysis();
+    $analysisWithInvalidSuggestions['suggestions'] = $invalidSuggestions;
+
+    expectProviderException(
+        fn () => providerWithResponse(new MockResponse(responseBody($analysisWithInvalidSuggestions)))->analyze(new AIAnalysisInput('a', 'b')),
+        'invalid required suggestions',
+    );
+}
+
+$nonTextualSuggestion = validAnalysis();
+$nonTextualSuggestion['suggestions'] = ['valid', 42];
+expectProviderException(
+    fn () => providerWithResponse(new MockResponse(responseBody($nonTextualSuggestion)))->analyze(new AIAnalysisInput('a', 'b')),
+    'non-textual suggestion',
 );
 
 $missingProperty = validAnalysis();

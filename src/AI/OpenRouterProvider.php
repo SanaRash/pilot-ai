@@ -126,10 +126,13 @@ final class OpenRouterProvider implements AIProviderInterface
                                 ],
                             ],
                             'suggestions' => [
-                                'type' => ['array', 'null'],
+                                'type' => 'array',
+                                'minItems' => 1,
                                 'maxItems' => self::MAX_SUGGESTIONS,
+                                'uniqueItems' => true,
                                 'items' => [
                                     'type' => 'string',
+                                    'minLength' => 1,
                                     'maxLength' => self::MAX_SUGGESTION_LENGTH,
                                 ],
                             ],
@@ -215,7 +218,7 @@ final class OpenRouterProvider implements AIProviderInterface
                 self::MAX_KEYWORDS,
                 self::MAX_KEYWORD_LENGTH,
             ),
-            suggestions: $this->validateNullableStringList(
+            suggestions: $this->validateRequiredStringList(
                 $analysis['suggestions'],
                 self::MAX_SUGGESTIONS,
                 self::MAX_SUGGESTION_LENGTH,
@@ -258,28 +261,6 @@ final class OpenRouterProvider implements AIProviderInterface
             }
 
             $seen[] = $item;
-        }
-
-        return $value;
-    }
-
-    /**
-     * @return list<string>|null
-     */
-    private function validateNullableStringList(mixed $value, int $maxItems, int $maxItemLength): ?array
-    {
-        if (null === $value) {
-            return null;
-        }
-
-        if (!is_array($value) || !array_is_list($value) || count($value) > $maxItems) {
-            throw new AIProviderException('Le provider IA a retourné une liste invalide.');
-        }
-
-        foreach ($value as $item) {
-            if (!is_string($item) || mb_strlen($item, 'UTF-8') > $maxItemLength) {
-                throw new AIProviderException('Le provider IA a retourné une liste invalide.');
-            }
         }
 
         return $value;

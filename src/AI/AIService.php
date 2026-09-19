@@ -59,7 +59,7 @@ final readonly class AIService
             self::MAX_KEYWORD_LENGTH,
             'mots-clés',
         );
-        $this->validateNullableTextList(
+        $this->validateRequiredTextList(
             $result->suggestions,
             self::MAX_SUGGESTIONS,
             self::MAX_SUGGESTION_LENGTH,
@@ -100,26 +100,6 @@ final readonly class AIService
             }
 
             $seen[] = $value;
-        }
-    }
-
-    /**
-     * @param array<array-key, mixed>|null $values
-     */
-    private function validateNullableTextList(?array $values, int $maxItems, int $maxItemLength, string $field): void
-    {
-        if (null === $values) {
-            return;
-        }
-
-        if (!array_is_list($values) || count($values) > $maxItems) {
-            throw new AIValidationException(sprintf('Le champ %s retourné par le provider IA est invalide.', $field));
-        }
-
-        foreach ($values as $value) {
-            if (!is_string($value) || mb_strlen($value, 'UTF-8') > $maxItemLength) {
-                throw new AIValidationException(sprintf('Le champ %s retourné par le provider IA est invalide.', $field));
-            }
         }
     }
 }

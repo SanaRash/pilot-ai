@@ -12,7 +12,7 @@
 - [x] priorité proposée
 - [x] catégorie proposée
 - [x] mots-clés
-- [ ] suggestions
+- [x] suggestions
 - [ ] sauvegarde `AIAnalysis`
 
 ## Règles
