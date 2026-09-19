@@ -4,7 +4,7 @@
 
 - [x] `AIProviderInterface`
 - [x] provider interchangeable OpenRouter/Mistral/OpenAI selon choix final
-- [ ] `AIService`
+- [x] `AIService`
 
 ## Analyse ticket
 
