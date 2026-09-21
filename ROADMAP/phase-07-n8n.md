@@ -4,7 +4,7 @@
 - [x] authentification de l'endpoint
 - [x] workflow n8n réception e-mail
 - [x] extraction expéditeur
-- [ ] extraction sujet
+- [x] extraction sujet
 - [ ] extraction contenu
 - [ ] création Ticket source EMAIL
 - [ ] stratégie createdBy pour ingestion système

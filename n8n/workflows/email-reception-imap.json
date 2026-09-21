@@ -26,7 +26,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        520,
+        780,
         0
       ],
       "id": "0fbda262-c392-487a-a084-7e912037d53c",
@@ -34,6 +34,33 @@
     },
     {
       "parameters": {
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "subject-normalized",
+              "name": "subject",
+              "type": "string",
+              "value": "={{ (() => { const value = $json.subject; if (typeof value !== 'string') return null; const normalized = value.trim(); return normalized === '' ? null : normalized; })() }}"
+            }
+          ]
+        },
+        "options": {
+          "dotNotation": true
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        520,
+        0
+      ],
+      "id": "f3d8fb6a-6e54-4a8a-bc73-0a04b8f5e84d",
+      "name": "Extraire sujet"
+    },
+    {
+      "parameters": {
+        "includeOtherFields": true,
         "assignments": {
           "assignments": [
             {
@@ -72,6 +99,17 @@
       ]
     },
     "Extraire expéditeur": {
+      "main": [
+        [
+          {
+            "node": "Extraire sujet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraire sujet": {
       "main": [
         [
           {
