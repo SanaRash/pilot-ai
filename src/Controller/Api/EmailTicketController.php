@@ -118,6 +118,8 @@ final class EmailTicketController extends AbstractController
             $systemUser = $this->userResolver->resolve();
         } catch (EmailIngestionUserResolutionException $exception) {
             $this->logger->error('Le compte système d’ingestion e-mail est indisponible.', [
+                'event' => 'email_ingestion_system_user_unavailable',
+                'step' => 'system_user_resolution',
                 'exception' => $exception::class,
             ]);
 
@@ -153,6 +155,8 @@ final class EmailTicketController extends AbstractController
             }
 
             $this->logger->error('La persistance du ticket e-mail a échoué.', [
+                'event' => 'email_ingestion_ticket_persistence_failed',
+                'step' => 'ticket_persistence',
                 'exception' => $exception::class,
             ]);
 
@@ -170,12 +174,18 @@ final class EmailTicketController extends AbstractController
         } catch (AIProviderException|AIValidationException $exception) {
             $aiAnalysisStatus = 'unavailable';
             $this->logger->warning('L’analyse IA du ticket e-mail est indisponible.', [
+                'event' => 'email_ingestion_ai_unavailable',
+                'step' => 'ai_analysis',
                 'exception' => $exception::class,
+                'ticketId' => $ticket->getId(),
             ]);
         } catch (ORMException|DBALException $exception) {
             $aiAnalysisStatus = 'unavailable';
             $this->logger->warning('La persistance de l’analyse IA du ticket e-mail a échoué.', [
+                'event' => 'email_ingestion_ai_persistence_failed',
+                'step' => 'ai_analysis_persistence',
                 'exception' => $exception::class,
+                'ticketId' => $ticket->getId(),
             ]);
         }
 

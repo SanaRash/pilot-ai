@@ -16,8 +16,10 @@ use App\Kernel;
 use App\Repository\UserRepository;
 use App\Security\EmailWebhookAuthenticator;
 use Doctrine\DBAL\Connection;
+use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\NullLogger;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Dotenv\Dotenv;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -26,6 +28,55 @@ require dirname(__DIR__, 2).'/vendor/autoload.php';
 
 const TEST_EMAIL_WEBHOOK_SECRET = 'test_email_webhook_secret_0123456789abcdef';
 
+final class EmailTestLogger implements LoggerInterface
+{
+    /** @var list<array{level: string, message: string, context: array<string, mixed>}> */
+    public array $records = [];
+
+    public function log($level, \Stringable|string $message, array $context = []): void
+    {
+        $this->records[] = [
+            'level' => (string) $level,
+            'message' => (string) $message,
+            'context' => $context,
+        ];
+    }
+
+    public function emergency(\Stringable|string $message, array $context = []): void { $this->log('emergency', $message, $context); }
+    public function alert(\Stringable|string $message, array $context = []): void { $this->log('alert', $message, $context); }
+    public function critical(\Stringable|string $message, array $context = []): void { $this->log('critical', $message, $context); }
+    public function error(\Stringable|string $message, array $context = []): void { $this->log('error', $message, $context); }
+    public function warning(\Stringable|string $message, array $context = []): void { $this->log('warning', $message, $context); }
+    public function notice(\Stringable|string $message, array $context = []): void { $this->log('notice', $message, $context); }
+    public function info(\Stringable|string $message, array $context = []): void { $this->log('info', $message, $context); }
+    public function debug(\Stringable|string $message, array $context = []): void { $this->log('debug', $message, $context); }
+}
+
+final class EmailTestFailingUserRepository extends UserRepository
+{
+    public function __construct(ManagerRegistry $registry)
+    {
+        parent::__construct($registry);
+    }
+
+    public function findEmailIngestionUser(string $email): ?User
+    {
+        $user = (new User())
+            ->setEmail($email)
+            ->setFirstname('Système')
+            ->setLastname('Ingestion e-mail')
+            ->setRoles([])
+            ->setIsActive(true)
+            ->setCreatedAt(new \DateTimeImmutable())
+            ->setPassword('test');
+
+        $id = new \ReflectionProperty(User::class, 'id');
+        $id->setValue($user, 999999999);
+
+        return $user;
+    }
+}
+
 final class EmailTestAIProvider implements AIProviderInterface
 {
     public static ?\App\AI\AIAnalysisInput $receivedInput = null;
@@ -33,12 +84,14 @@ final class EmailTestAIProvider implements AIProviderInterface
     public function __construct(
         private readonly ?\Throwable $failure = null,
         private readonly ?AIAnalysisResult $result = null,
+        private readonly ?\Closure $beforeResult = null,
     ) {
     }
 
     public function analyze(\App\AI\AIAnalysisInput $input): AIAnalysisResult
     {
         self::$receivedInput = $input;
+        ($this->beforeResult)?->__invoke();
 
         if (null !== $this->failure) {
             throw $this->failure;
@@ -58,9 +111,10 @@ function emailTestAIService(
     EntityManagerInterface $entityManager,
     ?\Throwable $failure = null,
     ?AIAnalysisResult $result = null,
+    ?\Closure $beforeResult = null,
 ): AIService
 {
-    return new AIService(new EmailTestAIProvider($failure, $result), $entityManager);
+    return new AIService(new EmailTestAIProvider($failure, $result, $beforeResult), $entityManager);
 }
 
 function ensureEmailEndpoint(bool $condition, string $message): void
@@ -68,6 +122,34 @@ function ensureEmailEndpoint(bool $condition, string $message): void
     if (!$condition) {
         throw new RuntimeException($message);
     }
+
+}
+
+function assertEmailLog(
+        EmailTestLogger $logger,
+        string $level,
+        string $event,
+        string $step,
+        string $exception,
+        ?int $ticketId,
+    ): void {
+        $record = $logger->records[array_key_last($logger->records)] ?? null;
+        ensureEmailEndpoint(is_array($record), sprintf('Missing log record for %s.', $event));
+        ensureEmailEndpoint($level === $record['level'], sprintf('Unexpected level for %s.', $event));
+        ensureEmailEndpoint($event === ($record['context']['event'] ?? null), sprintf('Unexpected event for %s.', $event));
+        ensureEmailEndpoint($step === ($record['context']['step'] ?? null), sprintf('Unexpected step for %s.', $event));
+        ensureEmailEndpoint(
+            is_string($record['context']['exception'] ?? null)
+            && is_a($record['context']['exception'], $exception, true),
+            sprintf('Unexpected exception for %s.', $event),
+        );
+        ensureEmailEndpoint($ticketId === ($record['context']['ticketId'] ?? null), sprintf('Unexpected ticketId for %s.', $event));
+        ensureEmailEndpoint(!str_contains(json_encode($record, JSON_THROW_ON_ERROR), TEST_EMAIL_WEBHOOK_SECRET), 'Bearer secret was logged.');
+        ensureEmailEndpoint(!str_contains(json_encode($record, JSON_THROW_ON_ERROR), 'OPENROUTER_API_KEY'), 'OpenRouter key was logged.');
+        ensureEmailEndpoint(!str_contains(json_encode($record, JSON_THROW_ON_ERROR), 'Client@Example.test'), 'Sender was logged.');
+        ensureEmailEndpoint(!str_contains(json_encode($record, JSON_THROW_ON_ERROR), 'Demande de support'), 'Subject was logged.');
+        ensureEmailEndpoint(!str_contains(json_encode($record, JSON_THROW_ON_ERROR), 'message@example.test'), 'Message ID was logged.');
+        ensureEmailEndpoint(!str_contains(json_encode($record, JSON_THROW_ON_ERROR), 'Première ligne'), 'Description was logged.');
 }
 
 function callEmailEndpoint(
@@ -384,14 +466,58 @@ try {
     $creationEntityManager->persist($systemUser);
     $creationEntityManager->flush();
 
+    /*
+    $ticketCountBeforePhaseAFailure = (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket');
+    $creationConnection->executeStatement('SET TRANSACTION READ ONLY');
+    $creationConnection->executeStatement('SET TRANSACTION READ ONLY');
+    $phaseAFailureLogger = new EmailTestLogger();
+    $phaseAFailureController = new EmailTicketController(
+        new EmailWebhookAuthenticator('******'),
+        new EmailIngestionUserResolver(
+            new EmailTestFailingUserRepository($kernel->getContainer()->get('doctrine')),
+            $creationEmail,
+        ),
+        $creationEntityManager,
+        new TicketHistoryService($creationEntityManager),
+        $phaseAFailureLogger,
+        emailTestAIService($creationEntityManager),
+    );
+    $phaseAFailureResponse = $phaseAFailureController(Request::create(
+        '/api/tickets/email',
+        'POST',
+        server: [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_AUTHORIZATION' => 'Bearer test-secret',
+        ],
+        content: encodedPayload([
+            'sender' => 'Client@Example.test',
+            'subject' => 'Phase A failure',
+            'content' => 'The ticket must be rolled back.',
+        ]),
+    ));
+    $phaseAFailureBody = decodedResponse($phaseAFailureResponse, 'ticket persistence failure');
+    ensureEmailEndpoint(Response::HTTP_INTERNAL_SERVER_ERROR === $phaseAFailureResponse->getStatusCode(), sprintf('Ticket persistence failure must return 500 (got %d: %s).', $phaseAFailureResponse->getStatusCode(), $phaseAFailureResponse->getContent()));
+    ensureEmailEndpoint('email_ingestion_persistence_failed' === ($phaseAFailureBody['error']['code'] ?? null), 'Unexpected ticket persistence error code.');
+    ensureEmailEndpoint($ticketCountBeforePhaseAFailure === (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket'), 'Ticket persistence failure must rollback the ticket.');
+    assertEmailLog(
+        $phaseAFailureLogger,
+        'error',
+        'email_ingestion_ticket_persistence_failed',
+        'ticket_persistence',
+        \Throwable::class,
+        null,
+    );
+    */
+
     /** @var UserRepository $userRepository */
     $userRepository = $creationEntityManager->getRepository(User::class);
+    $creationLogger = new EmailTestLogger();
     $creationController = new EmailTicketController(
         new EmailWebhookAuthenticator('test-secret'),
         new EmailIngestionUserResolver($userRepository, $creationEmail),
         $creationEntityManager,
         new TicketHistoryService($creationEntityManager),
-        new \Psr\Log\NullLogger(),
+        $creationLogger,
         emailTestAIService($creationEntityManager),
     );
     $creationResponse = $creationController(Request::create(
@@ -443,7 +569,7 @@ try {
         new EmailIngestionUserResolver($userRepository, $creationEmail),
         $creationEntityManager,
         new TicketHistoryService($creationEntityManager),
-        new \Psr\Log\NullLogger(),
+        $creationLogger,
         emailTestAIService($creationEntityManager, new \App\AI\Exception\AIProviderException('Provider unavailable.')),
     );
     $failureResponse = $failureController(Request::create(
@@ -462,6 +588,14 @@ try {
     $failureBody = decodedResponse($failureResponse, 'unavailable AI provider');
     ensureEmailEndpoint(Response::HTTP_CREATED === $failureResponse->getStatusCode(), 'AI provider failure must keep HTTP 201.');
     ensureEmailEndpoint('unavailable' === ($failureBody['data']['aiAnalysis'] ?? null), 'AI provider failure must be reported.');
+    assertEmailLog(
+        $creationLogger,
+        'warning',
+        'email_ingestion_ai_unavailable',
+        'ai_analysis',
+        \App\AI\Exception\AIProviderException::class,
+        (int) $failureBody['data']['id'],
+    );
     $failedTicket = $creationEntityManager->find(Ticket::class, $failureBody['data']['id'] ?? null);
     ensureEmailEndpoint($failedTicket instanceof Ticket, 'Ticket must remain after AI provider failure.');
     ensureEmailEndpoint(null === $creationEntityManager->getRepository(AIAnalysis::class)->findOneBy(['ticket' => $failedTicket]), 'No partial AI analysis may remain.');
@@ -471,7 +605,7 @@ try {
         new EmailIngestionUserResolver($userRepository, $creationEmail),
         $creationEntityManager,
         new TicketHistoryService($creationEntityManager),
-        new \Psr\Log\NullLogger(),
+        $creationLogger,
         emailTestAIService(
             $creationEntityManager,
             result: new AIAnalysisResult('Résumé', 'INVALID', 'Support', ['email'], ['Suggestion']),
@@ -493,6 +627,14 @@ try {
     $invalidResultBody = decodedResponse($invalidResultResponse, 'invalid AI result');
     ensureEmailEndpoint(Response::HTTP_CREATED === $invalidResultResponse->getStatusCode(), 'Invalid AI result must keep HTTP 201.');
     ensureEmailEndpoint('unavailable' === ($invalidResultBody['data']['aiAnalysis'] ?? null), 'Invalid AI result must be reported.');
+    assertEmailLog(
+        $creationLogger,
+        'warning',
+        'email_ingestion_ai_unavailable',
+        'ai_analysis',
+        \App\AI\Exception\AIValidationException::class,
+        (int) $invalidResultBody['data']['id'],
+    );
     $invalidTicket = $creationEntityManager->find(Ticket::class, $invalidResultBody['data']['id'] ?? null);
     ensureEmailEndpoint($invalidTicket instanceof Ticket, 'Ticket must remain after invalid AI result.');
     ensureEmailEndpoint(null === $creationEntityManager->getRepository(AIAnalysis::class)->findOneBy(['ticket' => $invalidTicket]), 'Invalid AI result must not be persisted.');
@@ -517,6 +659,54 @@ try {
     ensureEmailEndpoint(Response::HTTP_SERVICE_UNAVAILABLE === $unavailableResponse->getStatusCode(), 'Inactive system user must return 503.');
     ensureEmailEndpoint('email_ingestion_system_user_unavailable' === ($unavailableBody['error']['code'] ?? null), 'Unexpected unavailable-user error code.');
     ensureEmailEndpoint($ticketCountBeforeUnavailable === (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket'), 'Unavailable ingestion must not create a ticket.');
+    assertEmailLog(
+        $creationLogger,
+        'error',
+        'email_ingestion_system_user_unavailable',
+        'system_user_resolution',
+        \App\Service\EmailIngestionUserResolutionException::class,
+        null,
+    );
+
+    $ticketCountBeforePhaseAFailure = (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket');
+    $creationConnection->executeStatement('SET TRANSACTION READ ONLY');
+    $phaseAFailureLogger = new EmailTestLogger();
+    $phaseAFailureController = new EmailTicketController(
+        new EmailWebhookAuthenticator('test-secret'),
+        new EmailIngestionUserResolver(
+            new EmailTestFailingUserRepository($creationKernel->getContainer()->get('doctrine')),
+            $creationEmail,
+        ),
+        $creationEntityManager,
+        new TicketHistoryService($creationEntityManager),
+        $phaseAFailureLogger,
+        emailTestAIService($creationEntityManager),
+    );
+    $phaseAFailureResponse = $phaseAFailureController(Request::create(
+        '/api/tickets/email',
+        'POST',
+        server: [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_AUTHORIZATION' => 'Bearer test-secret',
+        ],
+        content: encodedPayload([
+            'sender' => 'Client@Example.test',
+            'subject' => 'Phase A failure',
+            'content' => 'The ticket must be rolled back.',
+        ]),
+    ));
+    $phaseAFailureBody = decodedResponse($phaseAFailureResponse, 'ticket persistence failure');
+    ensureEmailEndpoint(Response::HTTP_INTERNAL_SERVER_ERROR === $phaseAFailureResponse->getStatusCode(), sprintf('Ticket persistence failure must return 500 (got %d: %s).', $phaseAFailureResponse->getStatusCode(), $phaseAFailureResponse->getContent()));
+    ensureEmailEndpoint('email_ingestion_persistence_failed' === ($phaseAFailureBody['error']['code'] ?? null), 'Unexpected ticket persistence error code.');
+    ensureEmailEndpoint($ticketCountBeforePhaseAFailure === (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket'), 'Ticket persistence failure must rollback the ticket.');
+    assertEmailLog(
+        $phaseAFailureLogger,
+        'error',
+        'email_ingestion_ticket_persistence_failed',
+        'ticket_persistence',
+        \Throwable::class,
+        null,
+    );
 } finally {
     $creationConnection->rollBack();
     $creationKernel->shutdown();

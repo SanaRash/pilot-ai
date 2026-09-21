@@ -9,5 +9,5 @@
 - [x] création Ticket source EMAIL
 - [x] stratégie createdBy pour ingestion système
 - [x] appel analyse IA
-- [ ] journalisation erreurs
+- [x] journalisation erreurs
 - [ ] tests
