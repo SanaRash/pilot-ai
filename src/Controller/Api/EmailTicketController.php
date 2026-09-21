@@ -2,8 +2,14 @@
 
 namespace App\Controller\Api;
 
+use App\Entity\Ticket;
 use App\Security\EmailWebhookAuthenticator;
+use App\Service\EmailIngestionUserResolutionException;
+use App\Service\EmailIngestionUserResolver;
+use App\Service\TicketHistoryService;
+use Doctrine\ORM\EntityManagerInterface;
 use JsonException;
+use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -15,8 +21,13 @@ final class EmailTicketController extends AbstractController
     private const array ALLOWED_FIELDS = ['sender', 'subject', 'content', 'messageId'];
     private const int MAX_REQUEST_BYTES = 1_000_000;
 
-    public function __construct(private readonly EmailWebhookAuthenticator $authenticator)
-    {
+    public function __construct(
+        private readonly EmailWebhookAuthenticator $authenticator,
+        private readonly EmailIngestionUserResolver $userResolver,
+        private readonly EntityManagerInterface $entityManager,
+        private readonly TicketHistoryService $ticketHistoryService,
+        private readonly LoggerInterface $logger,
+    ) {
     }
 
     #[Route(
@@ -97,11 +108,62 @@ final class EmailTicketController extends AbstractController
             return $this->validationError($errors);
         }
 
-        return $this->error(
-            Response::HTTP_SERVICE_UNAVAILABLE,
-            'email_ingestion_not_configured',
-            'L’ingestion des tickets par e-mail n’est pas encore configurée.',
-        );
+        try {
+            $systemUser = $this->userResolver->resolve();
+        } catch (EmailIngestionUserResolutionException $exception) {
+            $this->logger->error('Le compte système d’ingestion e-mail est indisponible.', [
+                'exception' => $exception::class,
+            ]);
+
+            return $this->error(
+                Response::HTTP_SERVICE_UNAVAILABLE,
+                'email_ingestion_system_user_unavailable',
+                'Le service d’ingestion e-mail est temporairement indisponible.',
+            );
+        }
+
+        $connection = $this->entityManager->getConnection();
+        $connection->beginTransaction();
+
+        try {
+            $ticket = (new Ticket())
+                ->setTitle($payload['subject'])
+                ->setDescription($payload['content'])
+                ->setSource('EMAIL')
+                ->setStatus(Ticket::STATUS_OPEN)
+                ->setPriority(Ticket::PRIORITY_MEDIUM)
+                ->setCategory(null)
+                ->setAssignedTo(null)
+                ->setCreatedAt(new \DateTimeImmutable())
+                ->setUpdatedAt(null)
+                ->setCreatedBy($systemUser);
+
+            $this->entityManager->persist($ticket);
+            $this->ticketHistoryService->record($ticket, 'TICKET_CREATED', null, null, $systemUser);
+            $connection->commit();
+
+            return new JsonResponse([
+                'data' => [
+                    'id' => $ticket->getId(),
+                    'source' => 'EMAIL',
+                    'status' => Ticket::STATUS_OPEN,
+                ],
+            ], Response::HTTP_CREATED);
+        } catch (\Throwable $exception) {
+            if ($connection->isTransactionActive()) {
+                $connection->rollBack();
+            }
+
+            $this->logger->error('La persistance du ticket e-mail a échoué.', [
+                'exception' => $exception::class,
+            ]);
+
+            return $this->error(
+                Response::HTTP_INTERNAL_SERVER_ERROR,
+                'email_ingestion_persistence_failed',
+                'Le ticket e-mail n’a pas pu être créé.',
+            );
+        }
     }
 
     /**

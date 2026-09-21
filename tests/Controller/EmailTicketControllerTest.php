@@ -3,9 +3,17 @@
 declare(strict_types=1);
 
 use App\Controller\Api\EmailTicketController;
+use App\Entity\Ticket;
+use App\Entity\TicketHistory;
+use App\Entity\User;
+use App\Service\EmailIngestionUserResolver;
+use App\Service\TicketHistoryService;
 use App\Kernel;
+use App\Repository\UserRepository;
 use App\Security\EmailWebhookAuthenticator;
 use Doctrine\DBAL\Connection;
+use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\NullLogger;
 use Symfony\Component\Dotenv\Dotenv;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -74,11 +82,16 @@ function encodedPayload(array $payload): string
 $_ENV['PILOTAI_EMAIL_WEBHOOK_SECRET'] = TEST_EMAIL_WEBHOOK_SECRET;
 $_SERVER['PILOTAI_EMAIL_WEBHOOK_SECRET'] = TEST_EMAIL_WEBHOOK_SECRET;
 putenv('PILOTAI_EMAIL_WEBHOOK_SECRET='.TEST_EMAIL_WEBHOOK_SECRET);
+$missingSystemEmail = 'missing-email-ingestion-'.bin2hex(random_bytes(8)).'@pilot-ai.internal';
+$_ENV['PILOTAI_EMAIL_SYSTEM_USER_EMAIL'] = $missingSystemEmail;
+$_SERVER['PILOTAI_EMAIL_SYSTEM_USER_EMAIL'] = $missingSystemEmail;
+putenv('PILOTAI_EMAIL_SYSTEM_USER_EMAIL='.$missingSystemEmail);
 $kernel = new Kernel($_SERVER['APP_ENV'] ?? 'dev', true);
 $kernel->boot();
 
 $connection = $kernel->getContainer()->get('doctrine')->getConnection();
 ensureEmailEndpoint($connection instanceof Connection, 'Doctrine did not provide a DBAL connection.');
+$entityManager = $kernel->getContainer()->get('doctrine')->getManager();
 $countsBefore = [
     'ticket' => (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket'),
     'analysis' => (int) $connection->fetchOne('SELECT COUNT(*) FROM aianalysis'),
@@ -152,7 +165,16 @@ $bodySecretResponse = callEmailEndpoint(
 ensureEmailEndpoint(Response::HTTP_UNAUTHORIZED === $bodySecretResponse->getStatusCode(), 'A JSON-body secret must not authenticate.');
 ensureEmailEndpoint(!str_contains($bodySecretResponse->getContent(), TEST_EMAIL_WEBHOOK_SECRET), 'A JSON-body secret was exposed.');
 
-$unconfiguredController = new EmailTicketController(new EmailWebhookAuthenticator(''));
+$unconfiguredController = new EmailTicketController(
+    new EmailWebhookAuthenticator(''),
+    new EmailIngestionUserResolver(
+        $entityManager->getRepository(\App\Entity\User::class),
+        'email-ingestion@pilot-ai.internal',
+    ),
+    $entityManager,
+    new TicketHistoryService($entityManager),
+    new NullLogger(),
+);
 $unconfiguredResponse = $unconfiguredController(Request::create(
     '/api/tickets/email',
     'POST',
@@ -167,7 +189,7 @@ ensureEmailEndpoint(!str_contains($unconfiguredResponse->getContent(), TEST_EMAI
 $validResponse = callEmailEndpoint($kernel, 'POST', encodedPayload(validEmailPayload()));
 $validBody = decodedResponse($validResponse, 'valid payload');
 ensureEmailEndpoint(Response::HTTP_SERVICE_UNAVAILABLE === $validResponse->getStatusCode(), 'A valid payload must return 503 until ingestion is configured.');
-ensureEmailEndpoint('email_ingestion_not_configured' === ($validBody['error']['code'] ?? null), 'Unexpected valid-payload error code.');
+ensureEmailEndpoint('email_ingestion_system_user_unavailable' === ($validBody['error']['code'] ?? null), 'Unexpected valid-payload error code.');
 
 $validMessageIdResponse = callEmailEndpoint($kernel, 'POST', encodedPayload(validEmailPayload([
     'messageId' => '<message@example.test>',
@@ -295,5 +317,102 @@ $countsAfter = [
     'history' => (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history'),
 ];
 ensureEmailEndpoint($countsBefore === $countsAfter, 'The endpoint caused an unexpected business persistence.');
+
+// Isolate the successful persistence path in a second kernel and transaction.
+$creationEmail = 'email-ingestion-test-'.bin2hex(random_bytes(8)).'@pilot-ai.internal';
+$_ENV['PILOTAI_EMAIL_SYSTEM_USER_EMAIL'] = $creationEmail;
+$_SERVER['PILOTAI_EMAIL_SYSTEM_USER_EMAIL'] = $creationEmail;
+putenv('PILOTAI_EMAIL_SYSTEM_USER_EMAIL='.$creationEmail);
+$creationKernel = new Kernel($_SERVER['APP_ENV'] ?? 'dev', true);
+$creationKernel->boot();
+$creationEntityManager = $creationKernel->getContainer()->get('doctrine')->getManager();
+ensureEmailEndpoint($creationEntityManager instanceof EntityManagerInterface, 'Doctrine manager unavailable for creation test.');
+$creationConnection = $creationEntityManager->getConnection();
+$creationConnection->beginTransaction();
+
+try {
+    $systemUser = (new User())
+        ->setEmail($creationEmail)
+        ->setFirstname('Système')
+        ->setLastname('Ingestion e-mail')
+        ->setRoles([])
+        ->setIsActive(true)
+        ->setCreatedAt(new \DateTimeImmutable())
+        ->setPassword('$2y$10$92IXUNpkjO0 composed test hash');
+    $creationEntityManager->persist($systemUser);
+    $creationEntityManager->flush();
+
+    /** @var UserRepository $userRepository */
+    $userRepository = $creationEntityManager->getRepository(User::class);
+    $creationController = new EmailTicketController(
+        new EmailWebhookAuthenticator('test-secret'),
+        new EmailIngestionUserResolver($userRepository, $creationEmail),
+        $creationEntityManager,
+        new TicketHistoryService($creationEntityManager),
+        new \Psr\Log\NullLogger(),
+    );
+    $creationResponse = $creationController(Request::create(
+        '/api/tickets/email',
+        'POST',
+        server: [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_AUTHORIZATION' => 'Bearer test-secret',
+        ],
+        content: encodedPayload([
+            'sender' => 'Client@Example.test',
+            'subject' => 'Demande de support',
+            'content' => "Première ligne\n\nDeuxième paragraphe",
+            'messageId' => '<message@example.test>',
+        ]),
+    ));
+    $creationBody = decodedResponse($creationResponse, 'successful email ticket creation');
+    ensureEmailEndpoint(Response::HTTP_CREATED === $creationResponse->getStatusCode(), 'Valid payload must return 201.');
+    ensureEmailEndpoint('EMAIL' === ($creationBody['data']['source'] ?? null), 'Source must be EMAIL.');
+    ensureEmailEndpoint('OPEN' === ($creationBody['data']['status'] ?? null), 'Status must be OPEN.');
+
+    $ticket = $creationEntityManager->find(Ticket::class, $creationBody['data']['id'] ?? null);
+    ensureEmailEndpoint($ticket instanceof Ticket, 'Created ticket was not found.');
+    ensureEmailEndpoint('Demande de support' === $ticket->getTitle(), 'Subject must map to title.');
+    ensureEmailEndpoint("Première ligne\n\nDeuxième paragraphe" === $ticket->getDescription(), 'Content must map to description.');
+    ensureEmailEndpoint('EMAIL' === $ticket->getSource(), 'Ticket source must be EMAIL.');
+    ensureEmailEndpoint('OPEN' === $ticket->getStatus(), 'Ticket status must be OPEN.');
+    ensureEmailEndpoint('MEDIUM' === $ticket->getPriority(), 'Priority must be MEDIUM.');
+    ensureEmailEndpoint(null === $ticket->getCategory(), 'Category must remain null.');
+    ensureEmailEndpoint(null === $ticket->getAssignedTo(), 'Assigned user must remain null.');
+    ensureEmailEndpoint(null === $ticket->getUpdatedAt(), 'Updated date must remain null.');
+    ensureEmailEndpoint($systemUser === $ticket->getCreatedBy(), 'CreatedBy must be the system user.');
+    ensureEmailEndpoint($ticket->getCreatedAt() instanceof \DateTimeImmutable, 'Created date must be server-generated.');
+    ensureEmailEndpoint('Client@Example.test' !== $ticket->getCreatedBy()?->getEmail(), 'Sender must not become createdBy.');
+
+    $history = $creationEntityManager->getRepository(TicketHistory::class)->findOneBy(['ticket' => $ticket]);
+    ensureEmailEndpoint($history instanceof TicketHistory, 'Creation history is missing.');
+    ensureEmailEndpoint('TICKET_CREATED' === $history->getAction(), 'Unexpected creation history action.');
+    ensureEmailEndpoint(null === $history->getOldValue() && null === $history->getNewValue(), 'Creation history values must be null.');
+    ensureEmailEndpoint($systemUser === $history->getChangedBy(), 'History changedBy must be the system user.');
+
+    $systemUser->setIsActive(false);
+    $creationEntityManager->flush();
+    $ticketCountBeforeUnavailable = (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket');
+    $unavailableResponse = $creationController(Request::create(
+        '/api/tickets/email',
+        'POST',
+        server: [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_AUTHORIZATION' => 'Bearer test-secret',
+        ],
+        content: encodedPayload([
+            'sender' => 'Client@Example.test',
+            'subject' => 'Demande de support',
+            'content' => 'Contenu',
+        ]),
+    ));
+    $unavailableBody = decodedResponse($unavailableResponse, 'inactive system user');
+    ensureEmailEndpoint(Response::HTTP_SERVICE_UNAVAILABLE === $unavailableResponse->getStatusCode(), 'Inactive system user must return 503.');
+    ensureEmailEndpoint('email_ingestion_system_user_unavailable' === ($unavailableBody['error']['code'] ?? null), 'Unexpected unavailable-user error code.');
+    ensureEmailEndpoint($ticketCountBeforeUnavailable === (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket'), 'Unavailable ingestion must not create a ticket.');
+} finally {
+    $creationConnection->rollBack();
+    $creationKernel->shutdown();
+}
 
 echo "EmailTicketController tests: PASS\n";
