@@ -2,6 +2,7 @@
 
 namespace App\Controller\Api;
 
+use App\Security\EmailWebhookAuthenticator;
 use JsonException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -13,6 +14,10 @@ final class EmailTicketController extends AbstractController
 {
     private const array ALLOWED_FIELDS = ['sender', 'subject', 'content', 'messageId'];
     private const int MAX_REQUEST_BYTES = 1_000_000;
+
+    public function __construct(private readonly EmailWebhookAuthenticator $authenticator)
+    {
+    }
 
     #[Route(
         '/api/tickets/email',
@@ -34,6 +39,18 @@ final class EmailTicketController extends AbstractController
     #[Route('/api/tickets/email', name: 'api_tickets_email', methods: ['POST'], priority: 10)]
     public function __invoke(Request $request): JsonResponse
     {
+        if (!$this->authenticator->isConfigured()) {
+            return $this->error(
+                Response::HTTP_SERVICE_UNAVAILABLE,
+                'email_authentication_not_configured',
+                'Le service d’ingestion e-mail n’est pas configuré.',
+            );
+        }
+
+        if (!$this->authenticator->authenticate($request->headers->get('Authorization'))) {
+            return $this->authenticationRequired();
+        }
+
         $contentType = $request->headers->get('Content-Type', '');
 
         if (1 !== preg_match('/^application\/json(?:\s*;\s*charset=[A-Za-z0-9._-]+)?\s*$/i', $contentType)) {
@@ -184,5 +201,17 @@ final class EmailTicketController extends AbstractController
             'payload_too_large',
             'Le corps de la requête est trop volumineux.',
         );
+    }
+
+    private function authenticationRequired(): JsonResponse
+    {
+        $response = $this->error(
+            Response::HTTP_UNAUTHORIZED,
+            'authentication_required',
+            'Authentification requise.',
+        );
+        $response->headers->set('WWW-Authenticate', 'Bearer realm="Pilot AI email ingestion"');
+
+        return $response;
     }
 }

@@ -27,5 +27,9 @@ services:
     App\AI\AIProviderInterface:
         alias: App\AI\OpenRouterProvider
 
+    App\Security\EmailWebhookAuthenticator:
+        arguments:
+            $secret: '%env(string:PILOTAI_EMAIL_WEBHOOK_SECRET)%'
+
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

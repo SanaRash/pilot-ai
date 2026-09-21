@@ -2,13 +2,17 @@
 
 declare(strict_types=1);
 
+use App\Controller\Api\EmailTicketController;
 use App\Kernel;
+use App\Security\EmailWebhookAuthenticator;
 use Doctrine\DBAL\Connection;
 use Symfony\Component\Dotenv\Dotenv;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 require dirname(__DIR__, 2).'/vendor/autoload.php';
+
+const TEST_EMAIL_WEBHOOK_SECRET = 'test_email_webhook_secret_0123456789abcdef';
 
 function ensureEmailEndpoint(bool $condition, string $message): void
 {
@@ -17,12 +21,23 @@ function ensureEmailEndpoint(bool $condition, string $message): void
     }
 }
 
-function callEmailEndpoint(Kernel $kernel, string $method, string $body, ?string $contentType = 'application/json', array $additionalServer = []): Response
+function callEmailEndpoint(
+    Kernel $kernel,
+    string $method,
+    string $body,
+    ?string $contentType = 'application/json',
+    array $additionalServer = [],
+    ?string $authorization = 'Bearer '.TEST_EMAIL_WEBHOOK_SECRET,
+): Response
 {
     $server = array_replace(['HTTP_ACCEPT' => 'application/json'], $additionalServer);
 
     if (null !== $contentType) {
         $server['CONTENT_TYPE'] = $contentType;
+    }
+
+    if (null !== $authorization) {
+        $server['HTTP_AUTHORIZATION'] = $authorization;
     }
 
     return $kernel->handle(Request::create('/api/tickets/email', $method, server: $server, content: $body));
@@ -56,6 +71,9 @@ function encodedPayload(array $payload): string
 }
 
 (new Dotenv())->bootEnv(dirname(__DIR__, 2).'/.env');
+$_ENV['PILOTAI_EMAIL_WEBHOOK_SECRET'] = TEST_EMAIL_WEBHOOK_SECRET;
+$_SERVER['PILOTAI_EMAIL_WEBHOOK_SECRET'] = TEST_EMAIL_WEBHOOK_SECRET;
+putenv('PILOTAI_EMAIL_WEBHOOK_SECRET='.TEST_EMAIL_WEBHOOK_SECRET);
 $kernel = new Kernel($_SERVER['APP_ENV'] ?? 'dev', true);
 $kernel->boot();
 
@@ -66,6 +84,85 @@ $countsBefore = [
     'analysis' => (int) $connection->fetchOne('SELECT COUNT(*) FROM aianalysis'),
     'history' => (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history'),
 ];
+
+$configuredAuthenticator = new EmailWebhookAuthenticator(TEST_EMAIL_WEBHOOK_SECRET);
+ensureEmailEndpoint($configuredAuthenticator->isConfigured(), 'The test authenticator must be configured.');
+ensureEmailEndpoint($configuredAuthenticator->authenticate('Bearer '.TEST_EMAIL_WEBHOOK_SECRET), 'The exact secret must authenticate.');
+ensureEmailEndpoint($configuredAuthenticator->authenticate('bearer '.TEST_EMAIL_WEBHOOK_SECRET), 'The Bearer scheme must be case-insensitive.');
+ensureEmailEndpoint(!$configuredAuthenticator->authenticate('Bearer '.strtoupper(TEST_EMAIL_WEBHOOK_SECRET)), 'The secret must remain case-sensitive.');
+ensureEmailEndpoint(!$configuredAuthenticator->authenticate('Bearer '.TEST_EMAIL_WEBHOOK_SECRET.'x'), 'A one-character secret difference must fail.');
+
+$authenticationFailureBodies = [];
+foreach ([
+    'absent' => null,
+    'empty' => '',
+    'wrong scheme' => 'Basic '.TEST_EMAIL_WEBHOOK_SECRET,
+    'missing token' => 'Bearer',
+    'extra spaces' => 'Bearer  '.TEST_EMAIL_WEBHOOK_SECRET,
+    'trailing element' => 'Bearer '.TEST_EMAIL_WEBHOOK_SECRET.' extra',
+    'comma element' => 'Bearer '.TEST_EMAIL_WEBHOOK_SECRET.',other',
+    'incorrect' => 'Bearer incorrect_secret_0123456789abcdef',
+    'wrong case' => 'Bearer '.strtoupper(TEST_EMAIL_WEBHOOK_SECRET),
+    'oversized token' => 'Bearer '.str_repeat('x', 257),
+    'oversized header' => 'Bearer '.str_repeat('x', 506),
+] as $scenario => $authorization) {
+    $response = callEmailEndpoint(
+        $kernel,
+        'POST',
+        encodedPayload(validEmailPayload()),
+        authorization: $authorization,
+    );
+    ensureEmailEndpoint(Response::HTTP_UNAUTHORIZED === $response->getStatusCode(), sprintf('%s credential must return 401.', $scenario));
+    ensureEmailEndpoint('Bearer realm="Pilot AI email ingestion"' === $response->headers->get('WWW-Authenticate'), sprintf('%s credential has an invalid challenge.', $scenario));
+    $body = decodedResponse($response, sprintf('%s credential', $scenario));
+    ensureEmailEndpoint('authentication_required' === ($body['error']['code'] ?? null), sprintf('%s credential has an invalid code.', $scenario));
+    ensureEmailEndpoint(!str_contains($response->getContent(), TEST_EMAIL_WEBHOOK_SECRET), sprintf('%s credential leaked the secret.', $scenario));
+    $authenticationFailureBodies[] = $response->getContent();
+}
+ensureEmailEndpoint(1 === count(array_unique($authenticationFailureBodies)), 'Authentication failures must return identical bodies.');
+
+$unauthenticatedMalformed = callEmailEndpoint($kernel, 'POST', '{invalid-json', authorization: null);
+ensureEmailEndpoint(Response::HTTP_UNAUTHORIZED === $unauthenticatedMalformed->getStatusCode(), 'Authentication must precede JSON decoding.');
+$unauthenticatedContentType = callEmailEndpoint($kernel, 'POST', 'plain text', 'text/plain', authorization: null);
+ensureEmailEndpoint(Response::HTTP_UNAUTHORIZED === $unauthenticatedContentType->getStatusCode(), 'Authentication must precede Content-Type validation.');
+$unauthenticatedOversized = callEmailEndpoint(
+    $kernel,
+    'POST',
+    str_repeat('x', 1_000_001),
+    authorization: null,
+);
+ensureEmailEndpoint(Response::HTTP_UNAUTHORIZED === $unauthenticatedOversized->getStatusCode(), 'Authentication must precede body-size validation.');
+
+$querySecretRequest = Request::create(
+    '/api/tickets/email?secret='.urlencode(TEST_EMAIL_WEBHOOK_SECRET),
+    'POST',
+    server: ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json'],
+    content: encodedPayload(validEmailPayload()),
+);
+$querySecretResponse = $kernel->handle($querySecretRequest);
+ensureEmailEndpoint(Response::HTTP_UNAUTHORIZED === $querySecretResponse->getStatusCode(), 'A query-string secret must not authenticate.');
+ensureEmailEndpoint(!str_contains($querySecretResponse->getContent(), TEST_EMAIL_WEBHOOK_SECRET), 'A query-string secret was exposed.');
+
+$bodySecretResponse = callEmailEndpoint(
+    $kernel,
+    'POST',
+    encodedPayload(validEmailPayload(['secret' => TEST_EMAIL_WEBHOOK_SECRET])),
+    authorization: null,
+);
+ensureEmailEndpoint(Response::HTTP_UNAUTHORIZED === $bodySecretResponse->getStatusCode(), 'A JSON-body secret must not authenticate.');
+ensureEmailEndpoint(!str_contains($bodySecretResponse->getContent(), TEST_EMAIL_WEBHOOK_SECRET), 'A JSON-body secret was exposed.');
+
+$unconfiguredController = new EmailTicketController(new EmailWebhookAuthenticator(''));
+$unconfiguredResponse = $unconfiguredController(Request::create(
+    '/api/tickets/email',
+    'POST',
+    server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.TEST_EMAIL_WEBHOOK_SECRET],
+    content: encodedPayload(validEmailPayload()),
+));
+$unconfiguredBody = decodedResponse($unconfiguredResponse, 'unconfigured authentication');
+ensureEmailEndpoint(Response::HTTP_SERVICE_UNAVAILABLE === $unconfiguredResponse->getStatusCode(), 'Missing server authentication configuration must return 503.');
+ensureEmailEndpoint('email_authentication_not_configured' === ($unconfiguredBody['error']['code'] ?? null), 'Unexpected unconfigured-authentication error code.');
+ensureEmailEndpoint(!str_contains($unconfiguredResponse->getContent(), TEST_EMAIL_WEBHOOK_SECRET), 'The unconfigured response exposed a secret.');
 
 $validResponse = callEmailEndpoint($kernel, 'POST', encodedPayload(validEmailPayload()));
 $validBody = decodedResponse($validResponse, 'valid payload');
@@ -79,12 +176,12 @@ ensureEmailEndpoint(Response::HTTP_SERVICE_UNAVAILABLE === $validMessageIdRespon
 decodedResponse($validMessageIdResponse, 'valid messageId');
 
 foreach (['GET', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'TRACE', 'CONNECT'] as $method) {
-    $methodResponse = callEmailEndpoint($kernel, $method, '');
+    $methodResponse = callEmailEndpoint($kernel, $method, '', authorization: null);
     ensureEmailEndpoint(Response::HTTP_METHOD_NOT_ALLOWED === $methodResponse->getStatusCode(), sprintf('%s must return 405.', $method));
     ensureEmailEndpoint('POST' === $methodResponse->headers->get('Allow'), sprintf('%s must advertise POST in the Allow header.', $method));
     decodedResponse($methodResponse, 'non-POST method');
 }
-$headResponse = callEmailEndpoint($kernel, 'HEAD', '');
+$headResponse = callEmailEndpoint($kernel, 'HEAD', '', authorization: null);
 ensureEmailEndpoint(Response::HTTP_METHOD_NOT_ALLOWED === $headResponse->getStatusCode(), 'HEAD must return 405.');
 ensureEmailEndpoint('POST' === $headResponse->headers->get('Allow'), 'HEAD must advertise POST in the Allow header.');
 
