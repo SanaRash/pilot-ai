@@ -77,6 +77,18 @@ final class EmailTestFailingUserRepository extends UserRepository
     }
 }
 
+final class EmailTestAIFlushFailureListener
+{
+    public function onFlush(\Doctrine\ORM\Event\OnFlushEventArgs $event): void
+    {
+        foreach ($event->getObjectManager()->getUnitOfWork()->getScheduledEntityInsertions() as $entity) {
+            if ($entity instanceof AIAnalysis) {
+                throw new \Doctrine\ORM\Exception\NotSupported('Controlled AI persistence failure.');
+            }
+        }
+    }
+}
+
 final class EmailTestAIProvider implements AIProviderInterface
 {
     public static ?\App\AI\AIAnalysisInput $receivedInput = null;
@@ -639,6 +651,53 @@ try {
     ensureEmailEndpoint($invalidTicket instanceof Ticket, 'Ticket must remain after invalid AI result.');
     ensureEmailEndpoint(null === $creationEntityManager->getRepository(AIAnalysis::class)->findOneBy(['ticket' => $invalidTicket]), 'Invalid AI result must not be persisted.');
 
+    $aiFlushFailureListener = new EmailTestAIFlushFailureListener();
+    $aiPersistenceFailureController = new EmailTicketController(
+        new EmailWebhookAuthenticator('test-secret'),
+        new EmailIngestionUserResolver($userRepository, $creationEmail),
+        $creationEntityManager,
+        new TicketHistoryService($creationEntityManager),
+        $creationLogger,
+        emailTestAIService(
+            $creationEntityManager,
+            beforeResult: static function () use ($creationEntityManager, $aiFlushFailureListener): void {
+                $creationEntityManager->getEventManager()->addEventListener(['onFlush'], $aiFlushFailureListener);
+            },
+        ),
+    );
+    $aiPersistenceFailureResponse = $aiPersistenceFailureController(Request::create(
+        '/api/tickets/email',
+        'POST',
+        server: [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_AUTHORIZATION' => 'Bearer test-secret',
+        ],
+        content: encodedPayload([
+            'sender' => 'Client@Example.test',
+            'subject' => 'Persistance AI indisponible',
+            'content' => 'Le ticket doit rester conservé malgré une erreur Doctrine.',
+            'messageId' => '<ai-persistence@example.test>',
+        ]),
+    ));
+    $aiPersistenceFailureBody = decodedResponse($aiPersistenceFailureResponse, 'AI persistence failure');
+    ensureEmailEndpoint(Response::HTTP_CREATED === $aiPersistenceFailureResponse->getStatusCode(), sprintf('AI persistence failure must keep HTTP 201 (got %d: %s).', $aiPersistenceFailureResponse->getStatusCode(), $aiPersistenceFailureResponse->getContent()));
+    ensureEmailEndpoint('unavailable' === ($aiPersistenceFailureBody['data']['aiAnalysis'] ?? null), 'AI persistence failure must report unavailable analysis.');
+    assertEmailLog(
+        $creationLogger,
+        'warning',
+        'email_ingestion_ai_persistence_failed',
+        'ai_analysis_persistence',
+        \Throwable::class,
+        (int) $aiPersistenceFailureBody['data']['id'],
+    );
+    $aiPersistenceFailureTicket = $creationEntityManager->find(Ticket::class, $aiPersistenceFailureBody['data']['id'] ?? null);
+    ensureEmailEndpoint($aiPersistenceFailureTicket instanceof Ticket, 'Ticket must remain after AI persistence failure.');
+    $aiPersistenceFailureHistory = $creationEntityManager->getRepository(TicketHistory::class)->findOneBy(['ticket' => $aiPersistenceFailureTicket]);
+    ensureEmailEndpoint($aiPersistenceFailureHistory instanceof TicketHistory, 'Ticket creation history must remain after AI persistence failure.');
+    ensureEmailEndpoint('TICKET_CREATED' === $aiPersistenceFailureHistory->getAction(), 'Unexpected history after AI persistence failure.');
+    ensureEmailEndpoint(null === $creationEntityManager->getRepository(AIAnalysis::class)->findOneBy(['ticket' => $aiPersistenceFailureTicket]), 'AI persistence failure must not leave an analysis.');
+    $creationEntityManager->getEventManager()->removeEventListener(['onFlush'], $aiFlushFailureListener);
+
     $systemUser->setIsActive(false);
     $creationEntityManager->flush();
     $ticketCountBeforeUnavailable = (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket');
@@ -669,6 +728,7 @@ try {
     );
 
     $ticketCountBeforePhaseAFailure = (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket');
+    $historyCountBeforePhaseAFailure = (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket_history');
     $creationConnection->executeStatement('SET TRANSACTION READ ONLY');
     $phaseAFailureLogger = new EmailTestLogger();
     $phaseAFailureController = new EmailTicketController(
@@ -699,6 +759,8 @@ try {
     ensureEmailEndpoint(Response::HTTP_INTERNAL_SERVER_ERROR === $phaseAFailureResponse->getStatusCode(), sprintf('Ticket persistence failure must return 500 (got %d: %s).', $phaseAFailureResponse->getStatusCode(), $phaseAFailureResponse->getContent()));
     ensureEmailEndpoint('email_ingestion_persistence_failed' === ($phaseAFailureBody['error']['code'] ?? null), 'Unexpected ticket persistence error code.');
     ensureEmailEndpoint($ticketCountBeforePhaseAFailure === (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket'), 'Ticket persistence failure must rollback the ticket.');
+    ensureEmailEndpoint($historyCountBeforePhaseAFailure === (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket_history'), 'Ticket persistence failure must rollback ticket history.');
+    ensureEmailEndpoint(0 === (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket_history history LEFT JOIN ticket ON ticket.id = history.ticket_id WHERE ticket.id IS NULL'), 'Ticket persistence failure must not create orphan history.');
     assertEmailLog(
         $phaseAFailureLogger,
         'error',

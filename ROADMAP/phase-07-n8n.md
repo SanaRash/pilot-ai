@@ -10,4 +10,4 @@
 - [x] stratégie createdBy pour ingestion système
 - [x] appel analyse IA
 - [x] journalisation erreurs
-- [ ] tests
+- [x] tests
