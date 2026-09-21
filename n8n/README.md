@@ -2,14 +2,27 @@
 
 ## Réception e-mail IMAP
 
-Le fichier `workflows/email-reception-imap.json` est prévu pour n8n 2.39.8. Il contient uniquement :
+Le fichier `workflows/email-reception-imap.json` est prévu pour n8n 2.39.8. Il contient :
 
 1. le nœud natif `Email Trigger (IMAP)` en version 2.2 ;
-2. un nœud `No Operation` permettant de constater l'exécution.
+2. un nœud natif `Edit Fields` (`Set`) qui extrait l'adresse du champ `from` vers `sender` ;
+3. un nœud `No Operation` permettant de constater l'exécution.
 
 Le trigger maintient une connexion IMAP persistante. Il ne repose pas sur un polling périodique. n8n surveille la connexion et la rétablit nativement en cas de coupure. Une reconnexion préventive est configurée toutes les 60 minutes afin de supporter les serveurs limitant la durée d'une connexion.
 
-Le workflow n'appelle aucune API Pilot AI, ne normalise aucun champ de l'e-mail et ne produit aucun effet métier.
+Le workflow n'appelle aucune API Pilot AI, ne traite que l'expéditeur et ne produit aucun effet métier.
+
+### Extraction de l'expéditeur
+
+Le format `simple` du trigger expose l'en-tête `From` dans `$json.from`. Le workflow utilise
+`$json.from` en priorité et `$json.metadata.from` uniquement comme repli défensif. Il extrait
+la première adresse e-mail syntaxiquement valide dans l'ordre d'apparition, y compris dans une
+forme `Nom <email@example.com>`. Le nom d'affichage est supprimé, les espaces périphériques
+sont retirés et la casse du local-part est conservée. Une valeur absente ou invalide produit
+`sender: null`. Aucun autre en-tête (`reply-to`, `return-path` ou `to`) n'est utilisé.
+
+Le sujet et le contenu ne sont pas extraits dans cette tâche. Aucune adresse complète n'est
+journalisée explicitement par le workflow.
 
 ### Import et configuration
 
@@ -37,8 +50,8 @@ L'export ne contient volontairement ni bloc `credentials`, ni identifiant de cre
 2. Vérifier le credential avec le test de connexion n8n.
 3. Démarrer une écoute de test ou publier le workflow.
 4. Envoyer un nouvel e-mail unique vers la boîte surveillée.
-5. Vérifier qu'une seule exécution apparaît et atteint `Contrôle réception uniquement`.
-6. Vérifier qu'aucun nœud HTTP, aucune création de ticket et aucun appel IA ne sont exécutés.
+5. Vérifier qu'une seule exécution apparaît, que `Extraire expéditeur` produit `sender` et qu'elle atteint `Contrôle réception uniquement`.
+6. Vérifier qu'aucun nœud HTTP, aucune extraction du sujet ou du contenu, aucune création de ticket et aucun appel IA ne sont exécutés.
 7. Pour vérifier la reconnexion, interrompre temporairement l'accès au serveur IMAP de test : l'erreur doit être visible sans révéler les valeurs du credential, puis la connexion doit être rétablie par le mécanisme natif après restauration du service.
 
 Chaque nouveau test de réception doit utiliser un nouvel e-mail. Le workflow ne marque volontairement pas les messages comme lus et n'implémente aucune remise à zéro ou réexécution métier des anciens messages.

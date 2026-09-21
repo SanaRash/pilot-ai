@@ -26,16 +26,52 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        260,
+        520,
         0
       ],
       "id": "0fbda262-c392-487a-a084-7e912037d53c",
       "name": "Contrôle réception uniquement"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "sender-normalized",
+              "name": "sender",
+              "type": "string",
+              "value": "={{ (() => { const source = $json.from; const fallback = $json.metadata?.from; const raw = String((typeof source === 'string' && source.trim() !== '' ? source : fallback) ?? '').trim(); const isEmail = (value) => /^[^\\s@<>]+@[^\\s@<>]+$/.test(value); const candidates = /<([^<>]+)>|([^\\s<>,;]+@[^\\s<>,;]+)/g; let match; while ((match = candidates.exec(raw)) !== null) { const candidate = (match[1] ?? match[2]).trim(); if (isEmail(candidate)) return candidate; } return null; })() }}"
+            }
+          ]
+        },
+        "options": {
+          "dotNotation": true
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        260,
+        0
+      ],
+      "id": "c9b7b8b1-3b1d-4d3d-b27b-8c919bd4f819",
+      "name": "Extraire expéditeur"
     }
   ],
   "pinData": {},
   "connections": {
     "Réception e-mail IMAP": {
+      "main": [
+        [
+          {
+            "node": "Extraire expéditeur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraire expéditeur": {
       "main": [
         [
           {
