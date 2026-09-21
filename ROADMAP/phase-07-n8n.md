@@ -8,6 +8,6 @@
 - [x] extraction contenu
 - [x] création Ticket source EMAIL
 - [x] stratégie createdBy pour ingestion système
-- [ ] appel analyse IA
+- [x] appel analyse IA
 - [ ] journalisation erreurs
 - [ ] tests

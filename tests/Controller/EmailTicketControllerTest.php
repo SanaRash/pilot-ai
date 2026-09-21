@@ -3,6 +3,10 @@
 declare(strict_types=1);
 
 use App\Controller\Api\EmailTicketController;
+use App\Entity\AIAnalysis;
+use App\AI\AIAnalysisResult;
+use App\AI\AIProviderInterface;
+use App\AI\AIService;
 use App\Entity\Ticket;
 use App\Entity\TicketHistory;
 use App\Entity\User;
@@ -21,6 +25,43 @@ use Symfony\Component\HttpFoundation\Response;
 require dirname(__DIR__, 2).'/vendor/autoload.php';
 
 const TEST_EMAIL_WEBHOOK_SECRET = 'test_email_webhook_secret_0123456789abcdef';
+
+final class EmailTestAIProvider implements AIProviderInterface
+{
+    public static ?\App\AI\AIAnalysisInput $receivedInput = null;
+
+    public function __construct(
+        private readonly ?\Throwable $failure = null,
+        private readonly ?AIAnalysisResult $result = null,
+    ) {
+    }
+
+    public function analyze(\App\AI\AIAnalysisInput $input): AIAnalysisResult
+    {
+        self::$receivedInput = $input;
+
+        if (null !== $this->failure) {
+            throw $this->failure;
+        }
+
+        return $this->result ?? new AIAnalysisResult(
+            'Résumé de test',
+            'HIGH',
+            'Support',
+            ['email'],
+            ['Contacter le client'],
+        );
+    }
+}
+
+function emailTestAIService(
+    EntityManagerInterface $entityManager,
+    ?\Throwable $failure = null,
+    ?AIAnalysisResult $result = null,
+): AIService
+{
+    return new AIService(new EmailTestAIProvider($failure, $result), $entityManager);
+}
 
 function ensureEmailEndpoint(bool $condition, string $message): void
 {
@@ -174,6 +215,7 @@ $unconfiguredController = new EmailTicketController(
     $entityManager,
     new TicketHistoryService($entityManager),
     new NullLogger(),
+    emailTestAIService($entityManager),
 );
 $unconfiguredResponse = $unconfiguredController(Request::create(
     '/api/tickets/email',
@@ -350,6 +392,7 @@ try {
         $creationEntityManager,
         new TicketHistoryService($creationEntityManager),
         new \Psr\Log\NullLogger(),
+        emailTestAIService($creationEntityManager),
     );
     $creationResponse = $creationController(Request::create(
         '/api/tickets/email',
@@ -369,6 +412,7 @@ try {
     ensureEmailEndpoint(Response::HTTP_CREATED === $creationResponse->getStatusCode(), 'Valid payload must return 201.');
     ensureEmailEndpoint('EMAIL' === ($creationBody['data']['source'] ?? null), 'Source must be EMAIL.');
     ensureEmailEndpoint('OPEN' === ($creationBody['data']['status'] ?? null), 'Status must be OPEN.');
+    ensureEmailEndpoint('created' === ($creationBody['data']['aiAnalysis'] ?? null), 'AI analysis must be reported as created.');
 
     $ticket = $creationEntityManager->find(Ticket::class, $creationBody['data']['id'] ?? null);
     ensureEmailEndpoint($ticket instanceof Ticket, 'Created ticket was not found.');
@@ -383,12 +427,75 @@ try {
     ensureEmailEndpoint($systemUser === $ticket->getCreatedBy(), 'CreatedBy must be the system user.');
     ensureEmailEndpoint($ticket->getCreatedAt() instanceof \DateTimeImmutable, 'Created date must be server-generated.');
     ensureEmailEndpoint('Client@Example.test' !== $ticket->getCreatedBy()?->getEmail(), 'Sender must not become createdBy.');
+    ensureEmailEndpoint('Demande de support' === EmailTestAIProvider::$receivedInput?->title, 'Only the ticket title must be sent to the AI.');
+    ensureEmailEndpoint("Première ligne\n\nDeuxième paragraphe" === EmailTestAIProvider::$receivedInput?->description, 'Only the ticket description must be sent to the AI.');
 
     $history = $creationEntityManager->getRepository(TicketHistory::class)->findOneBy(['ticket' => $ticket]);
     ensureEmailEndpoint($history instanceof TicketHistory, 'Creation history is missing.');
     ensureEmailEndpoint('TICKET_CREATED' === $history->getAction(), 'Unexpected creation history action.');
     ensureEmailEndpoint(null === $history->getOldValue() && null === $history->getNewValue(), 'Creation history values must be null.');
     ensureEmailEndpoint($systemUser === $history->getChangedBy(), 'History changedBy must be the system user.');
+
+    $systemUser->setIsActive(true);
+    $creationEntityManager->flush();
+    $failureController = new EmailTicketController(
+        new EmailWebhookAuthenticator('test-secret'),
+        new EmailIngestionUserResolver($userRepository, $creationEmail),
+        $creationEntityManager,
+        new TicketHistoryService($creationEntityManager),
+        new \Psr\Log\NullLogger(),
+        emailTestAIService($creationEntityManager, new \App\AI\Exception\AIProviderException('Provider unavailable.')),
+    );
+    $failureResponse = $failureController(Request::create(
+        '/api/tickets/email',
+        'POST',
+        server: [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_AUTHORIZATION' => 'Bearer test-secret',
+        ],
+        content: encodedPayload([
+            'sender' => 'Client@Example.test',
+            'subject' => 'Provider indisponible',
+            'content' => 'Le ticket doit rester conservé.',
+        ]),
+    ));
+    $failureBody = decodedResponse($failureResponse, 'unavailable AI provider');
+    ensureEmailEndpoint(Response::HTTP_CREATED === $failureResponse->getStatusCode(), 'AI provider failure must keep HTTP 201.');
+    ensureEmailEndpoint('unavailable' === ($failureBody['data']['aiAnalysis'] ?? null), 'AI provider failure must be reported.');
+    $failedTicket = $creationEntityManager->find(Ticket::class, $failureBody['data']['id'] ?? null);
+    ensureEmailEndpoint($failedTicket instanceof Ticket, 'Ticket must remain after AI provider failure.');
+    ensureEmailEndpoint(null === $creationEntityManager->getRepository(AIAnalysis::class)->findOneBy(['ticket' => $failedTicket]), 'No partial AI analysis may remain.');
+
+    $invalidResultController = new EmailTicketController(
+        new EmailWebhookAuthenticator('test-secret'),
+        new EmailIngestionUserResolver($userRepository, $creationEmail),
+        $creationEntityManager,
+        new TicketHistoryService($creationEntityManager),
+        new \Psr\Log\NullLogger(),
+        emailTestAIService(
+            $creationEntityManager,
+            result: new AIAnalysisResult('Résumé', 'INVALID', 'Support', ['email'], ['Suggestion']),
+        ),
+    );
+    $invalidResultResponse = $invalidResultController(Request::create(
+        '/api/tickets/email',
+        'POST',
+        server: [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_AUTHORIZATION' => 'Bearer test-secret',
+        ],
+        content: encodedPayload([
+            'sender' => 'Client@Example.test',
+            'subject' => 'Réponse IA invalide',
+            'content' => 'Le ticket doit rester conservé.',
+        ]),
+    ));
+    $invalidResultBody = decodedResponse($invalidResultResponse, 'invalid AI result');
+    ensureEmailEndpoint(Response::HTTP_CREATED === $invalidResultResponse->getStatusCode(), 'Invalid AI result must keep HTTP 201.');
+    ensureEmailEndpoint('unavailable' === ($invalidResultBody['data']['aiAnalysis'] ?? null), 'Invalid AI result must be reported.');
+    $invalidTicket = $creationEntityManager->find(Ticket::class, $invalidResultBody['data']['id'] ?? null);
+    ensureEmailEndpoint($invalidTicket instanceof Ticket, 'Ticket must remain after invalid AI result.');
+    ensureEmailEndpoint(null === $creationEntityManager->getRepository(AIAnalysis::class)->findOneBy(['ticket' => $invalidTicket]), 'Invalid AI result must not be persisted.');
 
     $systemUser->setIsActive(false);
     $creationEntityManager->flush();

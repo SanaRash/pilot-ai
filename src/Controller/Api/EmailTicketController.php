@@ -2,11 +2,16 @@
 
 namespace App\Controller\Api;
 
+use App\AI\AIService;
+use App\AI\Exception\AIProviderException;
+use App\AI\Exception\AIValidationException;
 use App\Entity\Ticket;
 use App\Security\EmailWebhookAuthenticator;
 use App\Service\EmailIngestionUserResolutionException;
 use App\Service\EmailIngestionUserResolver;
 use App\Service\TicketHistoryService;
+use Doctrine\DBAL\Exception as DBALException;
+use Doctrine\ORM\Exception\ORMException;
 use Doctrine\ORM\EntityManagerInterface;
 use JsonException;
 use Psr\Log\LoggerInterface;
@@ -27,6 +32,7 @@ final class EmailTicketController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly TicketHistoryService $ticketHistoryService,
         private readonly LoggerInterface $logger,
+        private readonly AIService $aiService,
     ) {
     }
 
@@ -141,14 +147,6 @@ final class EmailTicketController extends AbstractController
             $this->entityManager->persist($ticket);
             $this->ticketHistoryService->record($ticket, 'TICKET_CREATED', null, null, $systemUser);
             $connection->commit();
-
-            return new JsonResponse([
-                'data' => [
-                    'id' => $ticket->getId(),
-                    'source' => 'EMAIL',
-                    'status' => Ticket::STATUS_OPEN,
-                ],
-            ], Response::HTTP_CREATED);
         } catch (\Throwable $exception) {
             if ($connection->isTransactionActive()) {
                 $connection->rollBack();
@@ -164,6 +162,31 @@ final class EmailTicketController extends AbstractController
                 'Le ticket e-mail n’a pas pu être créé.',
             );
         }
+
+        $aiAnalysisStatus = 'created';
+
+        try {
+            $this->aiService->analyzeTicket($ticket);
+        } catch (AIProviderException|AIValidationException $exception) {
+            $aiAnalysisStatus = 'unavailable';
+            $this->logger->warning('L’analyse IA du ticket e-mail est indisponible.', [
+                'exception' => $exception::class,
+            ]);
+        } catch (ORMException|DBALException $exception) {
+            $aiAnalysisStatus = 'unavailable';
+            $this->logger->warning('La persistance de l’analyse IA du ticket e-mail a échoué.', [
+                'exception' => $exception::class,
+            ]);
+        }
+
+        return new JsonResponse([
+            'data' => [
+                'id' => $ticket->getId(),
+                'source' => 'EMAIL',
+                'status' => Ticket::STATUS_OPEN,
+                'aiAnalysis' => $aiAnalysisStatus,
+            ],
+        ], Response::HTTP_CREATED);
     }
 
     /**
