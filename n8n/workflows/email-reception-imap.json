@@ -26,11 +26,39 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        780,
+        1040,
         0
       ],
       "id": "0fbda262-c392-487a-a084-7e912037d53c",
       "name": "Contrôle réception uniquement"
+    },
+    {
+      "parameters": {
+        "includeOtherFields": true,
+        "include": "except",
+        "excludeFields": "textPlain,textHtml",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "content-normalized",
+              "name": "content",
+              "type": "string",
+              "value": "={{ (() => { const value = $json.textPlain; if (typeof value !== 'string') return null; const normalized = value.trim(); return normalized === '' ? null : normalized; })() }}"
+            }
+          ]
+        },
+        "options": {
+          "dotNotation": true
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        780,
+        0
+      ],
+      "id": "ad9fcb8a-7fb3-4165-b7c3-37f9d7ecf0f5",
+      "name": "Extraire contenu"
     },
     {
       "parameters": {
@@ -110,6 +138,17 @@
       ]
     },
     "Extraire sujet": {
+      "main": [
+        [
+          {
+            "node": "Extraire contenu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraire contenu": {
       "main": [
         [
           {

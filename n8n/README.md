@@ -7,11 +7,13 @@ Le fichier `workflows/email-reception-imap.json` est prévu pour n8n 2.39.8. Il 
 1. le nœud natif `Email Trigger (IMAP)` en version 2.2 ;
 2. un nœud natif `Edit Fields` (`Set`) qui extrait l'adresse du champ `from` vers `sender` ;
 3. un nœud natif `Edit Fields` (`Set`) qui normalise le champ `subject` ;
-4. un nœud `No Operation` permettant de constater l'exécution.
+4. un nœud natif `Edit Fields` (`Set`) qui normalise le champ `textPlain` vers `content` ;
+5. un nœud `No Operation` permettant de constater l'exécution.
 
 Le trigger maintient une connexion IMAP persistante. Il ne repose pas sur un polling périodique. n8n surveille la connexion et la rétablit nativement en cas de coupure. Une reconnexion préventive est configurée toutes les 60 minutes afin de supporter les serveurs limitant la durée d'une connexion.
 
-Le workflow n'appelle aucune API Pilot AI, ne traite que l'expéditeur et le sujet et ne produit aucun effet métier.
+Le workflow n'appelle aucune API Pilot AI, traite uniquement l'expéditeur, le sujet et le
+contenu texte, et ne produit aucun effet métier.
 
 ### Extraction de l'expéditeur
 
@@ -22,8 +24,8 @@ forme `Nom <email@example.com>`. Le nom d'affichage est supprimé, les espaces p
 sont retirés et la casse du local-part est conservée. Une valeur absente ou invalide produit
 `sender: null`. Aucun autre en-tête (`reply-to`, `return-path` ou `to`) n'est utilisé.
 
-Le contenu du message n'est pas extrait dans cette tâche. Aucune adresse complète n'est
-journalisée explicitement par le workflow.
+Le contenu du message n'est pas journalisé explicitement par le workflow. Aucune adresse
+complète n'est journalisée explicitement non plus.
 
 ### Extraction du sujet
 
@@ -35,7 +37,22 @@ d'espaces produit `subject: null`.
 
 Aucun décodage RFC 2047 personnalisé n'est effectué. Une valeur MIME encore encodée est
 conservée telle quelle après suppression des espaces périphériques ; une valeur déjà décodée
-par n8n est conservée après cette même normalisation. Le contenu du message n'est pas extrait.
+par n8n est conservée après cette même normalisation. Le corps n'est pas concerné par cette
+normalisation du sujet.
+
+### Extraction du contenu
+
+Le format `simple` du trigger expose le corps texte dans `$json.textPlain` et le corps HTML
+dans `$json.textHtml`. Cette tâche utilise uniquement `$json.textPlain` pour produire
+`content`. Les espaces périphériques sont supprimés, tandis que les espaces internes, les
+sauts de ligne, les paragraphes, la casse, la ponctuation et les caractères Unicode sont
+conservés.
+
+Si `textPlain` est absent, non textuel, vide ou composé uniquement d'espaces, `content` vaut
+`null`, même si `textHtml` contient une valeur. Aucune conversion HTML vers texte n'est
+effectuée et le HTML brut n'est pas injecté dans `content`. Les pièces jointes ne sont ni
+téléchargées ni traitées. Après normalisation, les champs bruts `textPlain` et `textHtml` ne
+sont pas propagés au nœud de contrôle final.
 
 ### Import et configuration
 
@@ -63,8 +80,8 @@ L'export ne contient volontairement ni bloc `credentials`, ni identifiant de cre
 2. Vérifier le credential avec le test de connexion n8n.
 3. Démarrer une écoute de test ou publier le workflow.
 4. Envoyer un nouvel e-mail unique vers la boîte surveillée.
-5. Vérifier qu'une seule exécution apparaît, que `Extraire expéditeur` produit `sender`, que `Extraire sujet` produit `subject` et qu'elle atteint `Contrôle réception uniquement`.
-6. Vérifier qu'aucun nœud HTTP, aucune extraction du contenu, aucune création de ticket et aucun appel IA ne sont exécutés.
+5. Vérifier qu'une seule exécution apparaît, que `Extraire expéditeur` produit `sender`, que `Extraire sujet` produit `subject`, que `Extraire contenu` produit `content` et qu'elle atteint `Contrôle réception uniquement`.
+6. Vérifier qu'aucun nœud HTTP, aucune conversion HTML vers texte, aucune création de ticket et aucun appel IA ne sont exécutés.
 7. Pour vérifier la reconnexion, interrompre temporairement l'accès au serveur IMAP de test : l'erreur doit être visible sans révéler les valeurs du credential, puis la connexion doit être rétablie par le mécanisme natif après restauration du service.
 
 Chaque nouveau test de réception doit utiliser un nouvel e-mail. Le workflow ne marque volontairement pas les messages comme lus et n'implémente aucune remise à zéro ou réexécution métier des anciens messages.

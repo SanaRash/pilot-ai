@@ -5,7 +5,7 @@
 - [x] workflow n8n réception e-mail
 - [x] extraction expéditeur
 - [x] extraction sujet
-- [ ] extraction contenu
+- [x] extraction contenu
 - [ ] création Ticket source EMAIL
 - [ ] stratégie createdBy pour ingestion système
 - [ ] appel analyse IA
