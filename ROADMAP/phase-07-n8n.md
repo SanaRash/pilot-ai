@@ -7,7 +7,7 @@
 - [x] extraction sujet
 - [x] extraction contenu
 - [ ] création Ticket source EMAIL
-- [ ] stratégie createdBy pour ingestion système
+- [x] stratégie createdBy pour ingestion système
 - [ ] appel analyse IA
 - [ ] journalisation erreurs
 - [ ] tests

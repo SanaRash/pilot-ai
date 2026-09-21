@@ -14,6 +14,10 @@ use Symfony\Component\Routing\Attribute\Route;
 
 class RegistrationController extends AbstractController
 {
+    public function __construct(private readonly string $emailSystemUserEmail)
+    {
+    }
+
     #[Route('/register', name: 'app_register')]
     public function register(
         Request $request,
@@ -27,6 +31,16 @@ class RegistrationController extends AbstractController
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
+            if (0 === strcasecmp((string) $user->getEmail(), $this->emailSystemUserEmail)) {
+                $form->get('email')->addError(new \Symfony\Component\Form\FormError(
+                    'Cette adresse e-mail est réservée à un compte technique.',
+                ));
+
+                return $this->render('registration/register.html.twig', [
+                    'registrationForm' => $form,
+                ]);
+            }
+
             /** @var string $plainPassword */
             $plainPassword = $form->get('plainPassword')->getData();
 
