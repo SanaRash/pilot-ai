@@ -11,6 +11,7 @@ use App\Repository\CategoryRepository;
 use App\Repository\InterventionRepository;
 use App\Repository\TicketRepository;
 use App\Repository\TicketHistoryRepository;
+use App\Service\SimilarTicketFinder;
 use App\Service\TicketHistoryService;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
@@ -30,6 +31,10 @@ final class TechnicianController extends AbstractController
         'TICKET_ASSIGNED' => 'Ticket assigné',
         'CATEGORY_CHANGED' => 'Catégorie modifiée',
     ];
+
+    public function __construct(private readonly SimilarTicketFinder $similarTicketFinder)
+    {
+    }
 
     #[Route('/technician/tickets', name: 'app_technician_tickets')]
     public function tickets(TicketRepository $ticketRepository): Response
@@ -133,6 +138,12 @@ final class TechnicianController extends AbstractController
         FormView $interventionForm,
         ?Response $response = null,
     ): Response {
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            throw $this->createAccessDeniedException();
+        }
+
         return $this->render('technician/ticket_show.html.twig', [
             'ticket' => $ticket,
             'categories' => $categoryRepository->findBy([], ['name' => 'ASC']),
@@ -155,6 +166,7 @@ final class TechnicianController extends AbstractController
                 ['ticket' => $ticket],
                 ['createdAt' => 'DESC', 'id' => 'DESC'],
             ),
+            'similar_tickets' => $this->similarTicketFinder->findSimilar($ticket, $user),
             'history_action_labels' => self::HISTORY_ACTION_LABELS,
         ], $response);
     }

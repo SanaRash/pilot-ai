@@ -16,6 +16,56 @@ class TicketRepository extends ServiceEntityRepository
         parent::__construct($registry, Ticket::class);
     }
 
+    /**
+     * @param list<string> $terms
+     *
+     * @return list<Ticket>
+     */
+    public function findSimilarityCandidates(Ticket $ticket, array $terms, string $normalizedTitle, int $limit = 50): array
+    {
+        $ticketId = $ticket->getId();
+
+        if (null === $ticketId) {
+            return [];
+        }
+
+        $queryBuilder = $this->createQueryBuilder('candidate')
+            ->andWhere('candidate.id != :ticketId')
+            ->setParameter('ticketId', $ticketId)
+            ->orderBy('candidate.createdAt', 'DESC')
+            ->addOrderBy('candidate.id', 'DESC')
+            ->setMaxResults(max(1, min(50, $limit)));
+
+        $matches = $queryBuilder->expr()->orX();
+        $categoryId = $ticket->getCategory()?->getId();
+
+        if (null !== $categoryId) {
+            $matches->add('IDENTITY(candidate.category) = :categoryId');
+            $queryBuilder->setParameter('categoryId', $categoryId);
+        }
+
+        if ('' !== $normalizedTitle) {
+            $matches->add('TRIM(LOWER(candidate.title)) = :normalizedTitle');
+            $queryBuilder->setParameter('normalizedTitle', $normalizedTitle);
+        }
+
+        foreach (array_slice($terms, 0, 20) as $index => $term) {
+            $parameter = 'term_'.$index;
+            $matches->add(sprintf('LOWER(candidate.title) LIKE :%s', $parameter));
+            $matches->add(sprintf('LOWER(candidate.description) LIKE :%s', $parameter));
+            $queryBuilder->setParameter($parameter, '%'.$term.'%');
+        }
+
+        if (0 === $matches->count()) {
+            return [];
+        }
+
+        return $queryBuilder
+            ->andWhere($matches)
+            ->getQuery()
+            ->getResult();
+    }
+
     //    /**
     //     * @return Ticket[] Returns an array of Ticket objects
     //     */

@@ -24,4 +24,4 @@
 
 ## Bonus
 
-- [ ] tickets similaires
+- [x] tickets similaires

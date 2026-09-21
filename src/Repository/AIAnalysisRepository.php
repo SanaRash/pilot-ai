@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\AIAnalysis;
+use App\Entity\Ticket;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -14,6 +15,14 @@ class AIAnalysisRepository extends ServiceEntityRepository
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, AIAnalysis::class);
+    }
+
+    public function findLatestForTicket(Ticket $ticket): ?AIAnalysis
+    {
+        return $this->findOneBy(
+            ['ticket' => $ticket],
+            ['createdAt' => 'DESC', 'id' => 'DESC'],
+        );
     }
 
     //    /**

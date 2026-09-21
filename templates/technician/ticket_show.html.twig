@@ -165,6 +165,26 @@
         {% endfor %}
     {% endif %}
 
+    <h2>Tickets similaires</h2>
+
+    {% if similar_tickets is empty %}
+        <p>Aucun ticket similaire trouvé.</p>
+    {% else %}
+        <ul>
+            {% for similar_ticket in similar_tickets %}
+                <li>
+                    <a href="{{ path('app_technician_ticket_show', {id: similar_ticket.id}) }}">
+                        #{{ similar_ticket.id }} — {{ similar_ticket.title }}
+                    </a>
+                    — {{ similar_ticket.status }}
+                    — {{ similar_ticket.priority }}
+                    — {{ similar_ticket.category ? similar_ticket.category.name : 'Non catégorisé' }}
+                    — {{ similar_ticket.createdAt|date('d/m/Y H:i') }}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
     <h2>Interventions</h2>
 
     {% if interventions is empty %}
