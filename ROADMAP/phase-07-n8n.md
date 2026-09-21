@@ -1,6 +1,6 @@
 # Phase 07 — n8n et ingestion e-mail
 
-- [ ] endpoint `POST /api/tickets/email`
+- [x] endpoint `POST /api/tickets/email`
 - [ ] authentification de l'endpoint
 - [ ] workflow n8n réception e-mail
 - [ ] extraction expéditeur
