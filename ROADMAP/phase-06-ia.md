@@ -20,7 +20,7 @@
 - [x] aucune fermeture automatique
 - [x] aucune assignation automatique
 - [x] validation humaine par technicien
-- [ ] erreurs provider gérées proprement
+- [x] erreurs provider gérées proprement
 
 ## Bonus
 

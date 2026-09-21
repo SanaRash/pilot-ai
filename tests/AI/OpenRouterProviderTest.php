@@ -12,6 +12,9 @@ use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
 require dirname(__DIR__, 2).'/vendor/autoload.php';
 
+/** @var list<MockHttpClient> $mockHttpClients */
+$mockHttpClients = [];
+
 function responseBody(array $analysis): string
 {
     return json_encode([
@@ -36,26 +39,69 @@ function validAnalysis(): array
 
 function providerWithResponse(MockResponse|callable $response): OpenRouterProvider
 {
+    global $mockHttpClients;
+
+    $httpClient = new MockHttpClient($response);
+    $mockHttpClients[] = $httpClient;
+
     return new OpenRouterProvider(
-        new MockHttpClient($response),
+        $httpClient,
         str_repeat('x', 32),
         'mistralai/mistral-small-2603',
     );
 }
 
-function expectProviderException(callable $callback, string $scenario): AIProviderException
+function totalProviderRequests(): int
 {
+    global $mockHttpClients;
+
+    return array_sum(array_map(
+        static fn (MockHttpClient $httpClient): int => $httpClient->getRequestsCount(),
+        $mockHttpClients,
+    ));
+}
+
+function expectProviderException(callable $callback, string $scenario, ?int $expectedRequests = 1): AIProviderException
+{
+    $requestsBefore = totalProviderRequests();
+
     try {
         $callback();
     } catch (AIProviderException $exception) {
-        foreach (['sensitive remote body', 'sensitive transport details', 'sensitive timeout details', str_repeat('x', 32)] as $forbiddenValue) {
+        foreach (['sensitive remote body', 'sensitive transport details', 'sensitive timeout details', str_repeat('x', 32), 'Authorization'] as $forbiddenValue) {
             ensure(!str_contains($exception->getMessage(), $forbiddenValue), sprintf('Sensitive value exposed for %s.', $scenario));
+        }
+
+        if (null !== $expectedRequests) {
+            ensure(
+                $expectedRequests === totalProviderRequests() - $requestsBefore,
+                sprintf('%s must perform exactly %d provider request(s).', $scenario, $expectedRequests),
+            );
         }
 
         return $exception;
     }
 
     throw new RuntimeException(sprintf('Expected AIProviderException for %s.', $scenario));
+}
+
+function expectSingleRequestProviderException(MockResponse|callable $response, string $scenario): AIProviderException
+{
+    $httpClient = new MockHttpClient($response);
+    $provider = new OpenRouterProvider(
+        $httpClient,
+        str_repeat('x', 32),
+        'mistralai/mistral-small-2603',
+    );
+    $exception = expectProviderException(
+        fn () => $provider->analyze(new AIAnalysisInput('a', 'b')),
+        $scenario,
+        null,
+    );
+
+    ensure(1 === $httpClient->getRequestsCount(), sprintf('%s must perform exactly one provider request.', $scenario));
+
+    return $exception;
 }
 
 function ensure(bool $condition, string $message): void
@@ -294,33 +340,52 @@ expectProviderException(
     'missing property',
 );
 
-expectProviderException(
-    fn () => providerWithResponse(new MockResponse('{invalid-json'))->analyze(new AIAnalysisInput('a', 'b')),
+expectSingleRequestProviderException(
+    new MockResponse('{invalid-json'),
     'invalid response JSON',
 );
 
-expectProviderException(
-    fn () => providerWithResponse(new MockResponse(json_encode([
+foreach ([
+    'missing choices' => [],
+    'empty choices' => ['choices' => []],
+    'missing message' => ['choices' => [[]]],
+    'missing content' => ['choices' => [['message' => []]]],
+    'non-textual content' => ['choices' => [['message' => ['content' => 42]]]],
+] as $scenario => $incompleteEnvelope) {
+    expectSingleRequestProviderException(
+        new MockResponse(json_encode($incompleteEnvelope, JSON_THROW_ON_ERROR)),
+        $scenario,
+    );
+}
+
+expectSingleRequestProviderException(
+    new MockResponse(json_encode([
         'choices' => [['message' => ['content' => '{invalid-json']]],
-    ], JSON_THROW_ON_ERROR)))->analyze(new AIAnalysisInput('a', 'b')),
+    ], JSON_THROW_ON_ERROR)),
     'invalid analysis JSON',
 );
 
-foreach ([401, 429, 500] as $statusCode) {
-    expectProviderException(
-        fn () => providerWithResponse(new MockResponse('sensitive remote body', ['http_code' => $statusCode]))
-            ->analyze(new AIAnalysisInput('a', 'b')),
+foreach ([401, 429, 400, 403, 500, 502] as $statusCode) {
+    expectSingleRequestProviderException(
+        new MockResponse('sensitive remote body', ['http_code' => $statusCode]),
         sprintf('HTTP %d', $statusCode),
     );
 }
 
+$transportRequestCounter = new class {
+    public int $count = 0;
+};
 $transportException = expectProviderException(
-    fn () => providerWithResponse(static function (): never {
+    fn () => providerWithResponse(static function () use ($transportRequestCounter): never {
+        ++$transportRequestCounter->count;
+
         throw new class('sensitive transport details') extends RuntimeException implements TransportExceptionInterface {
         };
     })->analyze(new AIAnalysisInput('a', 'b')),
     'transport failure',
+    null,
 );
+ensure(1 === $transportRequestCounter->count, 'A transport failure must perform exactly one provider request.');
 ensure(null === $transportException->getPrevious(), 'Transport exception details must not be exposed through the exception chain.');
 
 $requestCount = 0;
@@ -330,22 +395,26 @@ $timeoutProvider = providerWithResponse(static function () use (&$requestCount):
     throw new class('sensitive timeout details') extends RuntimeException implements TimeoutExceptionInterface {
     };
 });
-expectProviderException(
+$timeoutException = expectProviderException(
     fn () => $timeoutProvider->analyze(new AIAnalysisInput('a', 'b')),
     'timeout',
+    null,
 );
 ensure(1 === $requestCount, 'The application must not retry a timed-out request.');
+ensure(null === $timeoutException->getPrevious(), 'Timeout details must not be exposed through the exception chain.');
 
 expectProviderException(
     fn () => (new OpenRouterProvider(new MockHttpClient(), '', 'mistralai/mistral-small-2603'))
         ->analyze(new AIAnalysisInput('a', 'b')),
     'missing API key',
+    0,
 );
 
 expectProviderException(
     fn () => (new OpenRouterProvider(new MockHttpClient(), str_repeat('x', 32), ''))
         ->analyze(new AIAnalysisInput('a', 'b')),
     'missing model',
+    0,
 );
 
 echo "OpenRouterProvider simulated HTTP tests: PASS\n";
