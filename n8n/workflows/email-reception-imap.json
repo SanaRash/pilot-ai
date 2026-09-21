@@ -1,0 +1,55 @@
+{
+  "name": "Pilot AI - Réception e-mail IMAP",
+  "nodes": [
+    {
+      "parameters": {
+        "mailbox": "INBOX",
+        "postProcessAction": "nothing",
+        "downloadAttachments": false,
+        "format": "simple",
+        "options": {
+          "forceReconnect": 60,
+          "trackLastMessageId": true
+        }
+      },
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "70cd4bad-97d1-4e9e-bd6a-8d70492787be",
+      "name": "Réception e-mail IMAP"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        260,
+        0
+      ],
+      "id": "0fbda262-c392-487a-a084-7e912037d53c",
+      "name": "Contrôle réception uniquement"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Réception e-mail IMAP": {
+      "main": [
+        [
+          {
+            "node": "Contrôle réception uniquement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

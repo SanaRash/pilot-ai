@@ -2,7 +2,7 @@
 
 - [x] endpoint `POST /api/tickets/email`
 - [x] authentification de l'endpoint
-- [ ] workflow n8n réception e-mail
+- [x] workflow n8n réception e-mail
 - [ ] extraction expéditeur
 - [ ] extraction sujet
 - [ ] extraction contenu
