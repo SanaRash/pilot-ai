@@ -2,7 +2,7 @@
 
 ## Client
 - [x] dashboard
-- [ ] mes tickets
+- [x] mes tickets
 - [ ] nouveau ticket
 - [ ] détail
 

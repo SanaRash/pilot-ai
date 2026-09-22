@@ -15,6 +15,13 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class ClientTicketController extends AbstractController
 {
+    private const array STATUS_LABELS = [
+        Ticket::STATUS_OPEN => 'Ouvert',
+        Ticket::STATUS_IN_PROGRESS => 'En cours',
+        Ticket::STATUS_RESOLVED => 'Résolu',
+        Ticket::STATUS_CLOSED => 'Fermé',
+    ];
+
     #[Route('/client/tickets', name: 'app_client_tickets', methods: ['GET'])]
     public function tickets(TicketRepository $ticketRepository): Response
     {
@@ -25,10 +32,8 @@ final class ClientTicketController extends AbstractController
         }
 
         return $this->render('client_ticket/tickets.html.twig', [
-            'tickets' => $ticketRepository->findBy(
-                ['createdBy' => $user],
-                ['createdAt' => 'DESC'],
-            ),
+            'tickets' => $ticketRepository->findAllForClient($user),
+            'status_labels' => self::STATUS_LABELS,
         ]);
     }
 

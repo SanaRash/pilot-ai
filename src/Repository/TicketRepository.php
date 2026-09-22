@@ -33,6 +33,20 @@ class TicketRepository extends ServiceEntityRepository
     }
 
     /**
+     * @return list<Ticket>
+     */
+    public function findAllForClient(User $client): array
+    {
+        return $this->createQueryBuilder('ticket')
+            ->andWhere('ticket.createdBy = :client')
+            ->setParameter('client', $client)
+            ->orderBy('ticket.createdAt', 'DESC')
+            ->addOrderBy('ticket.id', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * @param list<string> $terms
      *
      * @return list<Ticket>
