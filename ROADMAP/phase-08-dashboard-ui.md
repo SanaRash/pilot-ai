@@ -3,7 +3,7 @@
 ## Client
 - [x] dashboard
 - [x] mes tickets
-- [ ] nouveau ticket
+- [x] nouveau ticket
 - [ ] détail
 
 ## Technicien

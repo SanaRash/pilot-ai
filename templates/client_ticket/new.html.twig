@@ -3,29 +3,184 @@
 {% block title %}Nouveau ticket | Pilot AI{% endblock %}
 
 {% block body %}
+    <style>
+        .client-ticket-new {
+            min-height: 100vh;
+            padding: 3.5rem;
+            background: #f8fafc;
+            color: #0f172a;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
 
-    <h1>Créer un ticket</h1>
+        .client-ticket-new__card {
+            width: min(100%, 47.5rem);
+            padding: 1.5rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 1rem;
+            background: #fff;
+        }
 
-    {% for message in app.flashes('success') %}
-        <div>
-            {{ message }}
-        </div>
-    {% endfor %}
+        .client-ticket-new h1 {
+            margin: 0;
+            font-size: 1.75rem;
+            line-height: 1.2;
+        }
 
-    {{ form_start(form) }}
+        .client-ticket-new__help {
+            max-width: 37.8125rem;
+            margin: 0.75rem 0 1.5rem;
+            color: #64748b;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
 
-        {{ form_row(form.title, {
-            label: 'Titre'
-        }) }}
+        .client-ticket-new__alert {
+            margin-bottom: 1rem;
+            padding: 0.85rem 1rem;
+            border: 1px solid #bbf7d0;
+            border-radius: 0.625rem;
+            background: #f0fdf4;
+            color: #166534;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
 
-        {{ form_row(form.description, {
-            label: 'Description'
-        }) }}
+        .client-ticket-new__form {
+            display: grid;
+            gap: 1rem;
+        }
 
-        <button type="submit">
-            Créer le ticket
-        </button>
+        .client-ticket-new__field label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #64748b;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
 
-    {{ form_end(form) }}
+        .client-ticket-new__field input,
+        .client-ticket-new__field textarea {
+            width: 100%;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.625rem;
+            background: #fff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 0.875rem;
+        }
 
+        .client-ticket-new__field input {
+            max-width: 20rem;
+            padding: 0.75rem;
+        }
+
+        .client-ticket-new__field textarea {
+            min-height: 9.375rem;
+            padding: 0.75rem;
+            resize: vertical;
+        }
+
+        .client-ticket-new__field input::placeholder,
+        .client-ticket-new__field textarea::placeholder {
+            color: #94a3b8;
+        }
+
+        .client-ticket-new__errors {
+            margin: 0.5rem 0 0;
+            padding: 0;
+            color: #b91c1c;
+            font-size: 0.8125rem;
+            list-style: none;
+        }
+
+        .client-ticket-new__errors li + li {
+            margin-top: 0.25rem;
+        }
+
+        .client-ticket-new__actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.625rem;
+            margin-top: 0.25rem;
+        }
+
+        .client-ticket-new__button,
+        .client-ticket-new__link {
+            display: inline-block;
+            padding: 0.6875rem 1rem;
+            border-radius: 0.625rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .client-ticket-new__link {
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: #2563eb;
+        }
+
+        .client-ticket-new__button {
+            border: 1px solid #2563eb;
+            background: #2563eb;
+            color: #fff;
+        }
+
+        @media (max-width: 48rem) {
+            .client-ticket-new {
+                padding: 1.5rem;
+            }
+
+            .client-ticket-new__card {
+                padding: 1.25rem;
+            }
+
+            .client-ticket-new__field input {
+                max-width: none;
+            }
+        }
+    </style>
+
+    <main class="client-ticket-new">
+        <section class="client-ticket-new__card" aria-labelledby="new-ticket-title">
+            <h1 id="new-ticket-title">Nouvelle demande</h1>
+            <p class="client-ticket-new__help">Expliquez-nous votre problème. Pilot AI aidera l’équipe technique à qualifier votre demande.</p>
+
+            {% for message in app.flashes('success') %}
+                <div class="client-ticket-new__alert">
+                    {{ message }}
+                </div>
+            {% endfor %}
+
+            {{ form_start(form, {attr: {class: 'client-ticket-new__form'}}) }}
+                {{ form_errors(form) }}
+
+                <div class="client-ticket-new__field">
+                    {{ form_label(form.title, 'Titre de la demande *') }}
+                    {{ form_widget(form.title, {
+                        attr: {
+                            placeholder: 'Exemple : Impossible d’imprimer'
+                        }
+                    }) }}
+                    {{ form_errors(form.title, {attr: {class: 'client-ticket-new__errors'}}) }}
+                </div>
+
+                <div class="client-ticket-new__field">
+                    {{ form_label(form.description, 'Décrivez votre problème *') }}
+                    {{ form_widget(form.description, {
+                        attr: {
+                            placeholder: 'Que se passe-t-il ? Depuis quand ? Quel équipement est concerné ?'
+                        }
+                    }) }}
+                    {{ form_errors(form.description, {attr: {class: 'client-ticket-new__errors'}}) }}
+                </div>
+
+                <div class="client-ticket-new__actions">
+                    <a class="client-ticket-new__link" href="{{ path('app_client_tickets') }}">Annuler</a>
+                    <button class="client-ticket-new__button" type="submit">Envoyer ma demande</button>
+                </div>
+            {{ form_end(form) }}
+        </section>
+    </main>
 {% endblock %}

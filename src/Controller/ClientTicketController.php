@@ -60,12 +60,18 @@ final class ClientTicketController extends AbstractController
         ]);
     }
 
-    #[Route('/client/ticket/new', name: 'app_client_ticket_new')]
+    #[Route('/client/ticket/new', name: 'app_client_ticket_new', methods: ['GET', 'POST'])]
     public function new(
         Request $request,
         EntityManagerInterface $entityManager,
         TicketHistoryService $ticketHistoryService,
     ): Response {
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            throw $this->createAccessDeniedException();
+        }
+
         $ticket = new Ticket();
 
         $form = $this->createForm(TicketType::class, $ticket);
@@ -77,10 +83,6 @@ final class ClientTicketController extends AbstractController
             $ticket->setSource('APP');
             $ticket->setCreatedAt(new \DateTimeImmutable());
             $ticket->setUpdatedAt(null);
-
-            /** @var \App\Entity\User $user */
-            $user = $this->getUser();
-
             $ticket->setCreatedBy($user);
 
             $entityManager->persist($ticket);
@@ -94,10 +96,10 @@ final class ClientTicketController extends AbstractController
 
             $this->addFlash(
                 'success',
-                'Votre ticket a bien été créé.'
+                'Votre demande a bien été envoyée.'
             );
 
-            return $this->redirectToRoute('app_client_ticket_new');
+            return $this->redirectToRoute('app_client_tickets');
         }
 
         return $this->render('client_ticket/new.html.twig', [
