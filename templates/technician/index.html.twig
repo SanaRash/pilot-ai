@@ -1,20 +1,285 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Hello TechnicianController!{% endblock %}
+{% block title %}Dashboard technicien | Pilot AI{% endblock %}
 
 {% block body %}
-<style>
-    .example-wrapper { margin: 1em auto; max-width: 800px; width: 95%; font: 18px/1.5 sans-serif; }
-    .example-wrapper code { background: #F5F5F5; padding: 2px 6px; }
-</style>
+    <style>
+        .technician-dashboard {
+            min-height: 100vh;
+            padding: 3.5rem;
+            background: #f8fafc;
+            color: #0f172a;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
 
-<div class="example-wrapper">
-    <h1>Hello {{ controller_name }}! ✅</h1>
+        .technician-dashboard__content {
+            width: min(100%, 73.75rem);
+            margin: 0 auto;
+        }
 
-    This friendly message is coming from:
-    <ul>
-        <li>Your controller at <code>/home/s-sana/projects/pilot-ai/src/Controller/TechnicianController.php</code></li>
-        <li>Your template at <code>/home/s-sana/projects/pilot-ai/templates/technician/index.html.twig</code></li>
-    </ul>
-</div>
+        .technician-dashboard__header {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+        }
+
+        .technician-dashboard h1 {
+            margin: 0;
+            font-size: 1.875rem;
+            line-height: 1.2;
+        }
+
+        .technician-dashboard__subtitle {
+            margin: 0.5rem 0 0;
+            color: #64748b;
+            font-size: 0.9375rem;
+        }
+
+        .technician-dashboard__action {
+            display: inline-block;
+            flex: none;
+            padding: 0.65rem 0.9rem;
+            border: 1px solid #2563eb;
+            border-radius: 0.5rem;
+            background: #2563eb;
+            color: #fff;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .technician-dashboard__metrics {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .technician-dashboard__metric {
+            padding: 1.25rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            background: #fff;
+        }
+
+        .technician-dashboard__metric-label {
+            margin: 0;
+            color: #64748b;
+            font-size: 0.8125rem;
+            font-weight: 600;
+        }
+
+        .technician-dashboard__metric-value {
+            margin: 0.5rem 0 0;
+            color: #0f172a;
+            font-size: 2rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .technician-dashboard__columns {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1.25rem;
+        }
+
+        .technician-dashboard__section {
+            min-width: 0;
+        }
+
+        .technician-dashboard__section h2 {
+            margin: 0 0 1rem;
+            font-size: 1.25rem;
+        }
+
+        .technician-dashboard__tickets {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .technician-ticket-card {
+            display: grid;
+            gap: 0.85rem;
+            padding: 1.25rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            background: #fff;
+        }
+
+        .technician-ticket-card__top {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+            justify-content: space-between;
+        }
+
+        .technician-ticket-card__reference {
+            color: #2563eb;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .technician-ticket-card__title {
+            display: inline-block;
+            margin-top: 0.35rem;
+            color: #0f172a;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .technician-ticket-card__title:hover,
+        .technician-ticket-card__title:focus-visible {
+            color: #2563eb;
+            text-decoration: underline;
+        }
+
+        .technician-ticket-card__status {
+            flex: none;
+            padding: 0.375rem 0.625rem;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: #2563eb;
+            font-size: 0.6875rem;
+            font-weight: 700;
+        }
+
+        .technician-ticket-card__status--in_progress {
+            background: #f5f3ff;
+            color: #7c3aed;
+        }
+
+        .technician-ticket-card__status--resolved {
+            background: #f0fdf4;
+            color: #16a34a;
+        }
+
+        .technician-ticket-card__status--closed {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .technician-ticket-card__meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem 0.875rem;
+            margin: 0;
+            color: #64748b;
+            font-size: 0.75rem;
+        }
+
+        .technician-dashboard__empty {
+            padding: 1.5rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            background: #fff;
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+
+        @media (max-width: 56rem) {
+            .technician-dashboard {
+                padding: 1.5rem;
+            }
+
+            .technician-dashboard__header,
+            .technician-ticket-card__top {
+                flex-direction: column;
+            }
+
+            .technician-dashboard__metrics,
+            .technician-dashboard__columns {
+                grid-template-columns: 1fr;
+            }
+
+            .technician-dashboard__action {
+                width: 100%;
+                text-align: center;
+            }
+        }
+    </style>
+
+    <main class="technician-dashboard">
+        <div class="technician-dashboard__content">
+            <header class="technician-dashboard__header">
+                <div>
+                    <h1>Dashboard technicien</h1>
+                    <p class="technician-dashboard__subtitle">Suivez les demandes à traiter et vos tickets assignés.</p>
+                </div>
+
+                <a class="technician-dashboard__action" href="{{ path('app_technician_tickets') }}">Voir tous les tickets</a>
+            </header>
+
+            <section class="technician-dashboard__metrics" aria-label="Indicateurs tickets">
+                <article class="technician-dashboard__metric">
+                    <p class="technician-dashboard__metric-label">Tickets ouverts</p>
+                    <p class="technician-dashboard__metric-value">{{ open_ticket_count }}</p>
+                </article>
+
+                <article class="technician-dashboard__metric">
+                    <p class="technician-dashboard__metric-label">Assignés à moi</p>
+                    <p class="technician-dashboard__metric-value">{{ assigned_to_me_count }}</p>
+                </article>
+
+                <article class="technician-dashboard__metric">
+                    <p class="technician-dashboard__metric-label">Non assignés</p>
+                    <p class="technician-dashboard__metric-value">{{ open_unassigned_count }}</p>
+                </article>
+            </section>
+
+            <div class="technician-dashboard__columns">
+                <section class="technician-dashboard__section" aria-labelledby="tickets-to-take-title">
+                    <h2 id="tickets-to-take-title">Tickets à prendre</h2>
+
+                    {% if tickets_to_take is empty %}
+                        <div class="technician-dashboard__empty">Aucun ticket ouvert non assigné.</div>
+                    {% else %}
+                        <div class="technician-dashboard__tickets">
+                            {% for ticket in tickets_to_take %}
+                                {{ _self.ticket_card(ticket, status_labels, priority_labels) }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </section>
+
+                <section class="technician-dashboard__section" aria-labelledby="assigned-tickets-title">
+                    <h2 id="assigned-tickets-title">Mes tickets assignés</h2>
+
+                    {% if assigned_tickets is empty %}
+                        <div class="technician-dashboard__empty">Aucun ticket assigné en cours.</div>
+                    {% else %}
+                        <div class="technician-dashboard__tickets">
+                            {% for ticket in assigned_tickets %}
+                                {{ _self.ticket_card(ticket, status_labels, priority_labels) }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </section>
+            </div>
+        </div>
+    </main>
 {% endblock %}
+
+{% macro ticket_card(ticket, status_labels, priority_labels) %}
+    <article class="technician-ticket-card">
+        <div class="technician-ticket-card__top">
+            <div>
+                <div class="technician-ticket-card__reference">#{{ ticket.id }}</div>
+                <a class="technician-ticket-card__title" href="{{ path('app_technician_ticket_show', {id: ticket.id}) }}">{{ ticket.title }}</a>
+            </div>
+
+            <span class="technician-ticket-card__status technician-ticket-card__status--{{ ticket.status|lower }}">
+                {{ status_labels[ticket.status] }}
+            </span>
+        </div>
+
+        <p class="technician-ticket-card__meta">
+            <span>Client : {{ ticket.createdBy.firstname }} {{ ticket.createdBy.lastname }}</span>
+            <span>Priorité : {{ priority_labels[ticket.priority] }}</span>
+            <span>Catégorie : {{ ticket.category ? ticket.category.name : 'Non catégorisé' }}</span>
+            <span>Date : {{ ticket.createdAt|date('d/m/Y H:i') }}</span>
+        </p>
+    </article>
+{% endmacro %}

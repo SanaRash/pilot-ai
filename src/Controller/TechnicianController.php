@@ -24,6 +24,20 @@ use Symfony\Component\Security\Core\User\UserInterface;
 
 final class TechnicianController extends AbstractController
 {
+    private const array STATUS_LABELS = [
+        Ticket::STATUS_OPEN => 'Ouvert',
+        Ticket::STATUS_IN_PROGRESS => 'En cours',
+        Ticket::STATUS_RESOLVED => 'Résolu',
+        Ticket::STATUS_CLOSED => 'Fermé',
+    ];
+
+    private const array PRIORITY_LABELS = [
+        Ticket::PRIORITY_LOW => 'Basse',
+        Ticket::PRIORITY_MEDIUM => 'Moyenne',
+        Ticket::PRIORITY_HIGH => 'Haute',
+        Ticket::PRIORITY_URGENT => 'Urgente',
+    ];
+
     private const array HISTORY_ACTION_LABELS = [
         'TICKET_CREATED' => 'Ticket créé',
         'STATUS_CHANGED' => 'Statut modifié',
@@ -34,6 +48,26 @@ final class TechnicianController extends AbstractController
 
     public function __construct(private readonly SimilarTicketFinder $similarTicketFinder)
     {
+    }
+
+    #[Route('/technician', name: 'app_technician', methods: ['GET'])]
+    public function index(TicketRepository $ticketRepository): Response
+    {
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            throw $this->createAccessDeniedException();
+        }
+
+        return $this->render('technician/index.html.twig', [
+            'open_ticket_count' => $ticketRepository->countOpenTickets(),
+            'assigned_to_me_count' => $ticketRepository->countAssignedToTechnicianExcludingClosed($user),
+            'open_unassigned_count' => $ticketRepository->countOpenUnassignedTickets(),
+            'tickets_to_take' => $ticketRepository->findOpenUnassignedTickets(),
+            'assigned_tickets' => $ticketRepository->findAssignedToTechnicianExcludingClosed($user),
+            'status_labels' => self::STATUS_LABELS,
+            'priority_labels' => self::PRIORITY_LABELS,
+        ]);
     }
 
     #[Route('/technician/tickets', name: 'app_technician_tickets')]

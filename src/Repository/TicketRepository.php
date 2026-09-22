@@ -46,6 +46,72 @@ class TicketRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    public function countOpenTickets(): int
+    {
+        return (int) $this->createQueryBuilder('ticket')
+            ->select('COUNT(ticket.id)')
+            ->andWhere('ticket.status = :status')
+            ->setParameter('status', Ticket::STATUS_OPEN)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    public function countAssignedToTechnicianExcludingClosed(User $technician): int
+    {
+        return (int) $this->createQueryBuilder('ticket')
+            ->select('COUNT(ticket.id)')
+            ->andWhere('ticket.assignedTo = :technician')
+            ->andWhere('ticket.status != :closedStatus')
+            ->setParameter('technician', $technician)
+            ->setParameter('closedStatus', Ticket::STATUS_CLOSED)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    public function countOpenUnassignedTickets(): int
+    {
+        return (int) $this->createQueryBuilder('ticket')
+            ->select('COUNT(ticket.id)')
+            ->andWhere('ticket.assignedTo IS NULL')
+            ->andWhere('ticket.status = :status')
+            ->setParameter('status', Ticket::STATUS_OPEN)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
+     * @return list<Ticket>
+     */
+    public function findOpenUnassignedTickets(int $limit = 5): array
+    {
+        return $this->createQueryBuilder('ticket')
+            ->andWhere('ticket.assignedTo IS NULL')
+            ->andWhere('ticket.status = :status')
+            ->setParameter('status', Ticket::STATUS_OPEN)
+            ->orderBy('ticket.createdAt', 'DESC')
+            ->addOrderBy('ticket.id', 'DESC')
+            ->setMaxResults(max(1, min(5, $limit)))
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @return list<Ticket>
+     */
+    public function findAssignedToTechnicianExcludingClosed(User $technician, int $limit = 5): array
+    {
+        return $this->createQueryBuilder('ticket')
+            ->andWhere('ticket.assignedTo = :technician')
+            ->andWhere('ticket.status != :closedStatus')
+            ->setParameter('technician', $technician)
+            ->setParameter('closedStatus', Ticket::STATUS_CLOSED)
+            ->orderBy('ticket.createdAt', 'DESC')
+            ->addOrderBy('ticket.id', 'DESC')
+            ->setMaxResults(max(1, min(5, $limit)))
+            ->getQuery()
+            ->getResult();
+    }
+
     /**
      * @param list<string> $terms
      *

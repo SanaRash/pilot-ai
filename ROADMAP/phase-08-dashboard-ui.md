@@ -7,7 +7,7 @@
 - [x] détail
 
 ## Technicien
-- [ ] dashboard
+- [x] dashboard
 - [ ] tickets ouverts
 - [ ] tickets assignés
 - [ ] détail / actions
