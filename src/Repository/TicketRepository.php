@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\Ticket;
+use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -14,6 +15,21 @@ class TicketRepository extends ServiceEntityRepository
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Ticket::class);
+    }
+
+    /**
+     * @return list<Ticket>
+     */
+    public function findRecentForClient(User $client, int $limit = 2): array
+    {
+        return $this->createQueryBuilder('ticket')
+            ->andWhere('ticket.createdBy = :client')
+            ->setParameter('client', $client)
+            ->orderBy('ticket.createdAt', 'DESC')
+            ->addOrderBy('ticket.id', 'DESC')
+            ->setMaxResults(max(1, min(2, $limit)))
+            ->getQuery()
+            ->getResult();
     }
 
     /**

@@ -1,7 +1,7 @@
 # Phase 08 — Dashboards et UI
 
 ## Client
-- [ ] dashboard
+- [x] dashboard
 - [ ] mes tickets
 - [ ] nouveau ticket
 - [ ] détail
