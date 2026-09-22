@@ -57,6 +57,7 @@ final class ClientTicketController extends AbstractController
 
         return $this->render('client_ticket/show.html.twig', [
             'ticket' => $ticket,
+            'status_labels' => self::STATUS_LABELS,
         ]);
     }
 

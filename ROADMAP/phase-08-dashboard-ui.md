@@ -4,7 +4,7 @@
 - [x] dashboard
 - [x] mes tickets
 - [x] nouveau ticket
-- [ ] détail
+- [x] détail
 
 ## Technicien
 - [ ] dashboard

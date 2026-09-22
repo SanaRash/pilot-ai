@@ -3,31 +3,134 @@
 {% block title %}{{ ticket.title }} | Pilot AI{% endblock %}
 
 {% block body %}
+    <style>
+        .client-ticket-show {
+            min-height: 100vh;
+            padding: 3.5rem;
+            background: #f8fafc;
+            color: #0f172a;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
 
-    <h1>{{ ticket.title }}</h1>
+        .client-ticket-show__content {
+            width: min(100%, 73.75rem);
+        }
 
-    <dl>
-        <dt>Description</dt>
-        <dd>{{ ticket.description }}</dd>
+        .client-ticket-show__back {
+            display: inline-block;
+            margin-bottom: 1.25rem;
+            color: #2563eb;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            text-decoration: none;
+        }
 
-        <dt>Statut</dt>
-        <dd>{{ ticket.status }}</dd>
+        .client-ticket-show__reference {
+            margin: 0;
+            color: #64748b;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
 
-        <dt>Priorité</dt>
-        <dd>{{ ticket.priority }}</dd>
+        .client-ticket-show h1 {
+            margin: 1rem 0 1rem;
+            font-size: 1.75rem;
+            line-height: 1.2;
+        }
 
-        <dt>Catégorie</dt>
-        <dd>{{ ticket.category ? ticket.category.name : 'Non catégorisé' }}</dd>
+        .client-ticket-show__status {
+            display: inline-block;
+            margin-bottom: 1.5rem;
+            padding: 0.375rem 0.625rem;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: #2563eb;
+            font-size: 0.6875rem;
+            font-weight: 700;
+        }
 
-        <dt>Source</dt>
-        <dd>{{ ticket.source }}</dd>
+        .client-ticket-show__status--in_progress {
+            background: #f5f3ff;
+            color: #7c3aed;
+        }
 
-        <dt>Date de création</dt>
-        <dd>{{ ticket.createdAt|date('d/m/Y H:i') }}</dd>
-    </dl>
+        .client-ticket-show__status--resolved {
+            background: #f0fdf4;
+            color: #16a34a;
+        }
 
-    <p>
-        <a href="{{ path('app_client_tickets') }}">Retour à mes tickets</a>
-    </p>
+        .client-ticket-show__status--closed {
+            background: #f1f5f9;
+            color: #475569;
+        }
 
+        .client-ticket-show__card {
+            width: min(100%, 73.75rem);
+            min-height: 20rem;
+            padding: 1.25rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.875rem;
+            background: #fff;
+        }
+
+        .client-ticket-show__section + .client-ticket-show__section {
+            margin-top: 1.25rem;
+        }
+
+        .client-ticket-show__section h2 {
+            margin: 0 0 0.75rem;
+            font-size: 1rem;
+            line-height: 1.3;
+        }
+
+        .client-ticket-show__description {
+            max-width: 46rem;
+            margin: 0;
+            color: #0f172a;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .client-ticket-show__tracking {
+            margin: 0;
+            color: #64748b;
+            font-size: 0.8125rem;
+        }
+
+        @media (max-width: 48rem) {
+            .client-ticket-show {
+                padding: 1.5rem;
+            }
+
+            .client-ticket-show__card {
+                min-height: auto;
+            }
+        }
+    </style>
+
+    <main class="client-ticket-show">
+        <div class="client-ticket-show__content">
+            <a class="client-ticket-show__back" href="{{ path('app_client_tickets') }}">← Mes tickets</a>
+
+            <p class="client-ticket-show__reference">#{{ ticket.id }}</p>
+            <h1>{{ ticket.title }}</h1>
+
+            <span class="client-ticket-show__status client-ticket-show__status--{{ ticket.status|lower }}">
+                {{ status_labels[ticket.status] }}
+            </span>
+
+            <section class="client-ticket-show__card" aria-label="Détail de la demande">
+                <div class="client-ticket-show__section">
+                    <h2>Votre demande</h2>
+                    <p class="client-ticket-show__description">{{ ticket.description }}</p>
+                </div>
+
+                <div class="client-ticket-show__section">
+                    <h2>Suivi</h2>
+                    <p class="client-ticket-show__tracking">{{ ticket.createdAt|date('d/m/Y H:i') }} — Demande créée</p>
+                </div>
+            </section>
+        </div>
+    </main>
 {% endblock %}
