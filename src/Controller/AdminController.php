@@ -70,4 +70,40 @@ final class AdminController extends AbstractController
             'categories' => $categoryRepository->findAllWithTicketCountForAdmin(),
         ]);
     }
+
+    #[Route('/admin/statistics', name: 'app_admin_statistics', methods: ['GET'])]
+    public function statistics(TicketRepository $ticketRepository): Response
+    {
+        $today = new \DateTimeImmutable('today');
+        $start = $today->modify('-6 days');
+        $end = $today->modify('+1 day');
+        $createdByDayCounts = $ticketRepository->countCreatedByDayForAdminStats($start, $end);
+        $createdByDay = [];
+
+        for ($day = $start; $day < $end; $day = $day->modify('+1 day')) {
+            $dateKey = $day->format('Y-m-d');
+            $createdByDay[] = [
+                'date' => $day,
+                'ticketCount' => $createdByDayCounts[$dateKey] ?? 0,
+            ];
+        }
+
+        return $this->render('admin/statistics.html.twig', [
+            'total_ticket_count' => $ticketRepository->count([]),
+            'status_counts' => [
+                Ticket::STATUS_OPEN => $ticketRepository->countByStatus(Ticket::STATUS_OPEN),
+                Ticket::STATUS_IN_PROGRESS => $ticketRepository->countByStatus(Ticket::STATUS_IN_PROGRESS),
+                Ticket::STATUS_RESOLVED => $ticketRepository->countByStatus(Ticket::STATUS_RESOLVED),
+                Ticket::STATUS_CLOSED => $ticketRepository->countByStatus(Ticket::STATUS_CLOSED),
+            ],
+            'priority_counts' => array_replace(
+                array_fill_keys(Ticket::ALLOWED_PRIORITIES, 0),
+                $ticketRepository->countByPriorityForAdminStats(),
+            ),
+            'category_counts' => $ticketRepository->countByCategoryForAdminStats(),
+            'created_by_day' => $createdByDay,
+            'status_labels' => self::STATUS_LABELS,
+            'priority_labels' => self::PRIORITY_LABELS,
+        ]);
+    }
 }

@@ -161,6 +161,85 @@ class TicketRepository extends ServiceEntityRepository
     }
 
     /**
+     * @return array<string, int>
+     */
+    public function countByPriorityForAdminStats(): array
+    {
+        $rows = $this->createQueryBuilder('ticket')
+            ->select('ticket.priority AS priority')
+            ->addSelect('COUNT(ticket.id) AS ticketCount')
+            ->groupBy('ticket.priority')
+            ->getQuery()
+            ->getArrayResult();
+
+        $counts = [];
+        foreach ($rows as $row) {
+            $counts[(string) $row['priority']] = (int) $row['ticketCount'];
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @return list<array{label: string, ticketCount: int, categoryId: ?int}>
+     */
+    public function countByCategoryForAdminStats(): array
+    {
+        $rows = $this->createQueryBuilder('ticket')
+            ->select('category.id AS categoryId')
+            ->addSelect('COALESCE(category.name, :uncategorizedLabel) AS label')
+            ->addSelect('COUNT(ticket.id) AS ticketCount')
+            ->leftJoin('ticket.category', 'category')
+            ->setParameter('uncategorizedLabel', 'Non catégorisé')
+            ->groupBy('category.id')
+            ->addGroupBy('category.name')
+            ->orderBy('ticketCount', 'DESC')
+            ->addOrderBy('label', 'ASC')
+            ->addOrderBy('category.id', 'ASC')
+            ->getQuery()
+            ->getArrayResult();
+
+        return array_map(
+            static fn (array $row): array => [
+                'label' => (string) $row['label'],
+                'ticketCount' => (int) $row['ticketCount'],
+                'categoryId' => null === $row['categoryId'] ? null : (int) $row['categoryId'],
+            ],
+            $rows,
+        );
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public function countCreatedByDayForAdminStats(\DateTimeImmutable $start, \DateTimeImmutable $end): array
+    {
+        $rows = $this->getEntityManager()
+            ->getConnection()
+            ->fetchAllAssociative(
+                <<<'SQL'
+                    SELECT DATE(created_at) AS creation_day, COUNT(id) AS ticket_count
+                    FROM ticket
+                    WHERE created_at >= :startDate
+                      AND created_at < :endDate
+                    GROUP BY creation_day
+                    ORDER BY creation_day ASC
+                    SQL,
+                [
+                    'startDate' => $start->format('Y-m-d H:i:s'),
+                    'endDate' => $end->format('Y-m-d H:i:s'),
+                ],
+            );
+
+        $counts = [];
+        foreach ($rows as $row) {
+            $counts[(string) $row['creation_day']] = (int) $row['ticket_count'];
+        }
+
+        return $counts;
+    }
+
+    /**
      * @param list<string> $terms
      *
      * @return list<Ticket>

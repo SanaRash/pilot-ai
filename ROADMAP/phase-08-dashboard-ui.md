@@ -16,7 +16,7 @@
 - [x] dashboard
 - [x] utilisateurs
 - [x] catégories
-- [ ] statistiques MVP
+- [x] statistiques MVP
 
 ## UI
 - [ ] navigation selon rôle

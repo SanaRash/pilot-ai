@@ -1,0 +1,211 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Statistiques admin | Pilot AI{% endblock %}
+
+{% block body %}
+    <style>
+        .admin-statistics {
+            min-height: 100vh;
+            padding: 3.5rem;
+            background: #f8fafc;
+            color: #0f172a;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .admin-statistics__content {
+            width: min(100%, 76rem);
+            margin: 0 auto;
+        }
+
+        .admin-statistics__header {
+            margin-bottom: 1.5rem;
+        }
+
+        .admin-statistics h1 {
+            margin: 0;
+            font-size: 2rem;
+            line-height: 1.2;
+        }
+
+        .admin-statistics__subtitle {
+            margin: 0.5rem 0 0;
+            color: #64748b;
+        }
+
+        .admin-statistics__grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1rem;
+        }
+
+        .admin-statistics__card {
+            padding: 1.5rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.875rem;
+            background: #fff;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+
+        .admin-statistics__card--wide {
+            grid-column: 1 / -1;
+        }
+
+        .admin-statistics h2 {
+            margin: 0 0 1rem;
+            font-size: 1.25rem;
+        }
+
+        .admin-statistics__total {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 800;
+        }
+
+        .admin-statistics__list {
+            display: grid;
+            gap: 0.75rem;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .admin-statistics__row {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            align-items: center;
+            padding: 0.75rem;
+            border-radius: 0.625rem;
+            background: #f8fafc;
+        }
+
+        .admin-statistics__label {
+            color: #334155;
+            font-weight: 700;
+        }
+
+        .admin-statistics__value {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.3rem 0.55rem;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: #2563eb;
+            font-size: 0.75rem;
+            font-weight: 800;
+        }
+
+        .admin-statistics__bar {
+            height: 0.5rem;
+            margin-top: 0.5rem;
+            overflow: hidden;
+            border-radius: 999px;
+            background: #e2e8f0;
+        }
+
+        .admin-statistics__bar-fill {
+            height: 100%;
+            border-radius: inherit;
+            background: #2563eb;
+        }
+
+        .admin-statistics__empty {
+            margin: 0;
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            background: #f8fafc;
+            color: #64748b;
+        }
+
+        @media (max-width: 56rem) {
+            .admin-statistics {
+                padding: 1.5rem;
+            }
+
+            .admin-statistics__grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+
+    <main class="admin-statistics">
+        <div class="admin-statistics__content">
+            <header class="admin-statistics__header">
+                <h1>Statistiques</h1>
+                <p class="admin-statistics__subtitle">Analyse MVP des tickets Pilot AI.</p>
+            </header>
+
+            <div class="admin-statistics__grid">
+                <section class="admin-statistics__card" aria-labelledby="total-title">
+                    <h2 id="total-title">Volume total</h2>
+                    <p>Total des tickets</p>
+                    <p class="admin-statistics__total">{{ total_ticket_count }}</p>
+                </section>
+
+                <section class="admin-statistics__card" aria-labelledby="status-title">
+                    <h2 id="status-title">Répartition par statut</h2>
+                    <ul class="admin-statistics__list">
+                        {% for status, count in status_counts %}
+                            <li class="admin-statistics__row">
+                                <span class="admin-statistics__label">{{ status_labels[status] }}</span>
+                                <span class="admin-statistics__value">{{ count }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </section>
+
+                <section class="admin-statistics__card" aria-labelledby="priority-title">
+                    <h2 id="priority-title">Répartition par priorité</h2>
+                    <ul class="admin-statistics__list">
+                        {% for priority, count in priority_counts %}
+                            <li class="admin-statistics__row">
+                                <span class="admin-statistics__label">{{ priority_labels[priority] }}</span>
+                                <span class="admin-statistics__value">{{ count }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </section>
+
+                <section class="admin-statistics__card" aria-labelledby="category-title">
+                    <h2 id="category-title">Répartition par catégorie</h2>
+                    {% if category_counts is empty %}
+                        <p class="admin-statistics__empty">Aucun ticket catégorisé ou non catégorisé à afficher.</p>
+                    {% else %}
+                        <ul class="admin-statistics__list">
+                            {% for category in category_counts %}
+                                <li class="admin-statistics__row">
+                                    <span class="admin-statistics__label">{{ category.label }}</span>
+                                    <span class="admin-statistics__value">{{ category.ticketCount }}</span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                </section>
+
+                <section class="admin-statistics__card admin-statistics__card--wide" aria-labelledby="timeline-title">
+                    <h2 id="timeline-title">Tickets créés sur les 7 derniers jours</h2>
+                    <ul class="admin-statistics__list">
+                        {% set max_daily_count = 0 %}
+                        {% for day in created_by_day %}
+                            {% set max_daily_count = max(max_daily_count, day.ticketCount) %}
+                        {% endfor %}
+
+                        {% for day in created_by_day %}
+                            {% set width = max_daily_count > 0 ? (day.ticketCount / max_daily_count * 100) : 0 %}
+                            <li>
+                                <div class="admin-statistics__row">
+                                    <span class="admin-statistics__label">{{ day.date|date('d/m/Y') }}</span>
+                                    <span class="admin-statistics__value">{{ day.ticketCount }}</span>
+                                </div>
+                                <div class="admin-statistics__bar" aria-hidden="true">
+                                    <div class="admin-statistics__bar-fill" style="width: {{ width }}%;"></div>
+                                </div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </section>
+            </div>
+        </div>
+    </main>
+{% endblock %}
