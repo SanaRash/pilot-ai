@@ -1,0 +1,167 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Utilisateurs admin | Pilot AI{% endblock %}
+
+{% block body %}
+    <style>
+        .admin-users {
+            min-height: 100vh;
+            padding: 3.5rem;
+            background: #f8fafc;
+            color: #0f172a;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .admin-users__content {
+            width: min(100%, 76rem);
+            margin: 0 auto;
+        }
+
+        .admin-users__header {
+            margin-bottom: 1.5rem;
+        }
+
+        .admin-users h1 {
+            margin: 0;
+            font-size: 2rem;
+            line-height: 1.2;
+        }
+
+        .admin-users__subtitle {
+            margin: 0.5rem 0 0;
+            color: #64748b;
+        }
+
+        .admin-users__section {
+            padding: 1.5rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.875rem;
+            background: #fff;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+
+        .admin-users__table-wrapper {
+            overflow-x: auto;
+        }
+
+        .admin-users__table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 52rem;
+        }
+
+        .admin-users__table th,
+        .admin-users__table td {
+            padding: 0.85rem 0.75rem;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .admin-users__table th {
+            color: #64748b;
+            font-size: 0.75rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .admin-users__badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+
+        .admin-users__badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.3rem 0.55rem;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: #2563eb;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .admin-users__badge--inactive {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .admin-users__empty {
+            margin: 0;
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            background: #f8fafc;
+            color: #64748b;
+        }
+
+        @media (max-width: 56rem) {
+            .admin-users {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+
+    <main class="admin-users">
+        <div class="admin-users__content">
+            <header class="admin-users__header">
+                <h1>Utilisateurs</h1>
+                <p class="admin-users__subtitle">Consultez les comptes enregistrés dans Pilot AI.</p>
+            </header>
+
+            <section class="admin-users__section" aria-labelledby="admin-users-title">
+                <h2 id="admin-users-title">Liste des utilisateurs</h2>
+
+                {% if users is empty %}
+                    <p class="admin-users__empty">Aucun utilisateur à afficher.</p>
+                {% else %}
+                    <div class="admin-users__table-wrapper">
+                        <table class="admin-users__table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">ID</th>
+                                    <th scope="col">Prénom</th>
+                                    <th scope="col">Nom</th>
+                                    <th scope="col">Email</th>
+                                    <th scope="col">Rôles</th>
+                                    <th scope="col">Statut</th>
+                                    <th scope="col">Créé le</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in users %}
+                                    <tr>
+                                        <td>#{{ user.id }}</td>
+                                        <td>{{ user.firstname }}</td>
+                                        <td>{{ user.lastname }}</td>
+                                        <td>{{ user.email }}</td>
+                                        <td>
+                                            {% if user.roles is empty %}
+                                                —
+                                            {% else %}
+                                                <span class="admin-users__badges">
+                                                    {% for role in user.roles %}
+                                                        <span class="admin-users__badge">{{ role_labels[role] ?? role }}</span>
+                                                    {% endfor %}
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if user.isActive %}
+                                                <span class="admin-users__badge">Actif</span>
+                                            {% else %}
+                                                <span class="admin-users__badge admin-users__badge--inactive">Inactif</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ user.createdAt|date('d/m/Y H:i') }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+{% endblock %}

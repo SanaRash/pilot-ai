@@ -26,6 +26,12 @@ final class AdminController extends AbstractController
         Ticket::PRIORITY_URGENT => 'Urgente',
     ];
 
+    private const array ROLE_LABELS = [
+        'ROLE_CLIENT' => 'Client',
+        'ROLE_TECHNICIAN' => 'Technicien',
+        'ROLE_ADMIN' => 'Administrateur',
+    ];
+
     #[Route('/admin', name: 'app_admin', methods: ['GET'])]
     public function index(
         TicketRepository $ticketRepository,
@@ -45,6 +51,15 @@ final class AdminController extends AbstractController
             'recent_tickets' => $ticketRepository->findRecentForAdmin(),
             'status_labels' => self::STATUS_LABELS,
             'priority_labels' => self::PRIORITY_LABELS,
+        ]);
+    }
+
+    #[Route('/admin/users', name: 'app_admin_users', methods: ['GET'])]
+    public function users(UserRepository $userRepository): Response
+    {
+        return $this->render('admin/users.html.twig', [
+            'users' => $userRepository->findAllForAdminList(),
+            'role_labels' => self::ROLE_LABELS,
         ]);
     }
 }

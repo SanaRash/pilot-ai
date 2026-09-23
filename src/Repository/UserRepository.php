@@ -48,6 +48,47 @@ class UserRepository extends ServiceEntityRepository implements PasswordUpgrader
             );
     }
 
+    /**
+     * @return list<array{
+     *     id: int,
+     *     email: string,
+     *     roles: list<string>,
+     *     firstname: string,
+     *     lastname: string,
+     *     isActive: bool,
+     *     createdAt: \DateTimeImmutable
+     * }>
+     */
+    public function findAllForAdminList(): array
+    {
+        $rows = $this->getEntityManager()
+            ->getConnection()
+            ->fetchAllAssociative(
+                <<<'SQL'
+                    SELECT id, email, roles, firstname, lastname, is_active, created_at
+                    FROM "user"
+                    ORDER BY created_at DESC, id DESC
+                    SQL,
+            );
+
+        return array_map(
+            static function (array $row): array {
+                $roles = json_decode((string) $row['roles'], true, flags: JSON_THROW_ON_ERROR);
+
+                return [
+                    'id' => (int) $row['id'],
+                    'email' => (string) $row['email'],
+                    'roles' => array_values(array_filter($roles, 'is_string')),
+                    'firstname' => (string) $row['firstname'],
+                    'lastname' => (string) $row['lastname'],
+                    'isActive' => filter_var($row['is_active'], FILTER_VALIDATE_BOOL),
+                    'createdAt' => new \DateTimeImmutable((string) $row['created_at']),
+                ];
+            },
+            $rows,
+        );
+    }
+
     //    /**
     //     * @return User[] Returns an array of User objects
     //     */
