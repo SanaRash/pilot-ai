@@ -1,20 +1,259 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Hello AdminController!{% endblock %}
+{% block title %}Dashboard admin | Pilot AI{% endblock %}
 
 {% block body %}
-<style>
-    .example-wrapper { margin: 1em auto; max-width: 800px; width: 95%; font: 18px/1.5 sans-serif; }
-    .example-wrapper code { background: #F5F5F5; padding: 2px 6px; }
-</style>
+    <style>
+        .admin-dashboard {
+            min-height: 100vh;
+            padding: 3.5rem;
+            background: #f8fafc;
+            color: #0f172a;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
 
-<div class="example-wrapper">
-    <h1>Hello {{ controller_name }}! ✅</h1>
+        .admin-dashboard__content {
+            width: min(100%, 76rem);
+            margin: 0 auto;
+        }
 
-    This friendly message is coming from:
-    <ul>
-        <li>Your controller at <code>/home/s-sana/projects/pilot-ai/src/Controller/AdminController.php</code></li>
-        <li>Your template at <code>/home/s-sana/projects/pilot-ai/templates/admin/index.html.twig</code></li>
-    </ul>
-</div>
+        .admin-dashboard__header {
+            margin-bottom: 1.5rem;
+        }
+
+        .admin-dashboard h1 {
+            margin: 0;
+            font-size: 2rem;
+            line-height: 1.2;
+        }
+
+        .admin-dashboard__subtitle {
+            margin: 0.5rem 0 0;
+            color: #64748b;
+        }
+
+        .admin-dashboard__metrics {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .admin-dashboard__metric,
+        .admin-dashboard__section {
+            border: 1px solid #e2e8f0;
+            border-radius: 0.875rem;
+            background: #fff;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+
+        .admin-dashboard__metric {
+            padding: 1.25rem;
+        }
+
+        .admin-dashboard__metric-label {
+            margin: 0;
+            color: #64748b;
+            font-size: 0.8125rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .admin-dashboard__metric-value {
+            margin: 0.45rem 0 0;
+            font-size: 2rem;
+            font-weight: 800;
+        }
+
+        .admin-dashboard__section {
+            padding: 1.5rem;
+        }
+
+        .admin-dashboard__section h2 {
+            margin: 0 0 1rem;
+            font-size: 1.25rem;
+        }
+
+        .admin-dashboard__tickets {
+            display: grid;
+            gap: 1rem;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .admin-ticket-card {
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            background: #f8fafc;
+        }
+
+        .admin-ticket-card__header {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+
+        .admin-ticket-card__reference {
+            color: #2563eb;
+            font-size: 0.8125rem;
+            font-weight: 800;
+        }
+
+        .admin-ticket-card__title {
+            margin: 0.2rem 0 0;
+            font-size: 1rem;
+            font-weight: 800;
+        }
+
+        .admin-ticket-card__badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
+
+        .admin-ticket-card__badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.35rem 0.6rem;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: #2563eb;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .admin-ticket-card__badge--priority {
+            background: #fef3c7;
+            color: #b45309;
+        }
+
+        .admin-ticket-card__meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem 1rem;
+            margin: 0.85rem 0 0;
+            color: #475569;
+            font-size: 0.875rem;
+        }
+
+        .admin-dashboard__empty {
+            margin: 0;
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            background: #f8fafc;
+            color: #64748b;
+        }
+
+        @media (max-width: 56rem) {
+            .admin-dashboard {
+                padding: 1.5rem;
+            }
+
+            .admin-dashboard__metrics {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .admin-ticket-card__header {
+                display: grid;
+            }
+
+            .admin-ticket-card__badges {
+                justify-content: flex-start;
+            }
+        }
+
+        @media (max-width: 34rem) {
+            .admin-dashboard__metrics {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+
+    <main class="admin-dashboard">
+        <div class="admin-dashboard__content">
+            <header class="admin-dashboard__header">
+                <h1>Dashboard admin</h1>
+                <p class="admin-dashboard__subtitle">Vue d’ensemble du support Pilot AI.</p>
+            </header>
+
+            <section class="admin-dashboard__metrics" aria-label="Indicateurs admin">
+                <article class="admin-dashboard__metric">
+                    <p class="admin-dashboard__metric-label">Tickets ouverts</p>
+                    <p class="admin-dashboard__metric-value">{{ open_ticket_count }}</p>
+                </article>
+                <article class="admin-dashboard__metric">
+                    <p class="admin-dashboard__metric-label">Tickets non assignés ouverts</p>
+                    <p class="admin-dashboard__metric-value">{{ open_unassigned_ticket_count }}</p>
+                </article>
+                <article class="admin-dashboard__metric">
+                    <p class="admin-dashboard__metric-label">Tickets en cours</p>
+                    <p class="admin-dashboard__metric-value">{{ in_progress_ticket_count }}</p>
+                </article>
+                <article class="admin-dashboard__metric">
+                    <p class="admin-dashboard__metric-label">Tickets résolus</p>
+                    <p class="admin-dashboard__metric-value">{{ resolved_ticket_count }}</p>
+                </article>
+                <article class="admin-dashboard__metric">
+                    <p class="admin-dashboard__metric-label">Tickets fermés</p>
+                    <p class="admin-dashboard__metric-value">{{ closed_ticket_count }}</p>
+                </article>
+                <article class="admin-dashboard__metric">
+                    <p class="admin-dashboard__metric-label">Clients</p>
+                    <p class="admin-dashboard__metric-value">{{ client_count }}</p>
+                </article>
+                <article class="admin-dashboard__metric">
+                    <p class="admin-dashboard__metric-label">Techniciens</p>
+                    <p class="admin-dashboard__metric-value">{{ technician_count }}</p>
+                </article>
+                <article class="admin-dashboard__metric">
+                    <p class="admin-dashboard__metric-label">Catégories</p>
+                    <p class="admin-dashboard__metric-value">{{ category_count }}</p>
+                </article>
+            </section>
+
+            <section class="admin-dashboard__section" aria-labelledby="recent-tickets-title">
+                <h2 id="recent-tickets-title">Tickets récents</h2>
+
+                {% if recent_tickets is empty %}
+                    <p class="admin-dashboard__empty">Aucun ticket récent à afficher.</p>
+                {% else %}
+                    <ul class="admin-dashboard__tickets">
+                        {% for ticket in recent_tickets %}
+                            <li class="admin-ticket-card">
+                                <div class="admin-ticket-card__header">
+                                    <div>
+                                        <div class="admin-ticket-card__reference">#{{ ticket.id }}</div>
+                                        <p class="admin-ticket-card__title">{{ ticket.title }}</p>
+                                    </div>
+                                    <div class="admin-ticket-card__badges">
+                                        <span class="admin-ticket-card__badge">{{ status_labels[ticket.status] }}</span>
+                                        <span class="admin-ticket-card__badge admin-ticket-card__badge--priority">{{ priority_labels[ticket.priority] }}</span>
+                                    </div>
+                                </div>
+
+                                <p class="admin-ticket-card__meta">
+                                    <span>Catégorie : {{ ticket.category ? ticket.category.name : 'Non catégorisé' }}</span>
+                                    <span>Client : {{ ticket.createdBy.firstname }} {{ ticket.createdBy.lastname }}</span>
+                                    <span>
+                                        Assignation :
+                                        {% if ticket.assignedTo %}
+                                            {{ ticket.assignedTo.firstname }} {{ ticket.assignedTo.lastname }}
+                                        {% else %}
+                                            Non assigné
+                                        {% endif %}
+                                    </span>
+                                    <span>{{ ticket.createdAt|date('d/m/Y H:i') }}</span>
+                                </p>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </section>
+        </div>
+    </main>
 {% endblock %}

@@ -13,7 +13,7 @@
 - [x] détail / actions
 
 ## Admin
-- [ ] dashboard
+- [x] dashboard
 - [ ] utilisateurs
 - [ ] catégories
 - [ ] statistiques MVP

@@ -48,10 +48,15 @@ class TicketRepository extends ServiceEntityRepository
 
     public function countOpenTickets(): int
     {
+        return $this->countByStatus(Ticket::STATUS_OPEN);
+    }
+
+    public function countByStatus(string $status): int
+    {
         return (int) $this->createQueryBuilder('ticket')
             ->select('COUNT(ticket.id)')
             ->andWhere('ticket.status = :status')
-            ->setParameter('status', Ticket::STATUS_OPEN)
+            ->setParameter('status', $status)
             ->getQuery()
             ->getSingleScalarResult();
     }
@@ -135,6 +140,19 @@ class TicketRepository extends ServiceEntityRepository
             ->andWhere('ticket.status != :closedStatus')
             ->setParameter('technician', $technician)
             ->setParameter('closedStatus', Ticket::STATUS_CLOSED)
+            ->orderBy('ticket.createdAt', 'DESC')
+            ->addOrderBy('ticket.id', 'DESC')
+            ->setMaxResults(max(1, min(5, $limit)))
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @return list<Ticket>
+     */
+    public function findRecentForAdmin(int $limit = 5): array
+    {
+        return $this->createQueryBuilder('ticket')
             ->orderBy('ticket.createdAt', 'DESC')
             ->addOrderBy('ticket.id', 'DESC')
             ->setMaxResults(max(1, min(5, $limit)))

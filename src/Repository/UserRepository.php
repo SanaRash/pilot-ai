@@ -38,6 +38,16 @@ class UserRepository extends ServiceEntityRepository implements PasswordUpgrader
         return $this->findOneBy(['email' => $email]);
     }
 
+    public function countByPersistedRole(string $role): int
+    {
+        return (int) $this->getEntityManager()
+            ->getConnection()
+            ->fetchOne(
+                'SELECT COUNT(id) FROM "user" WHERE jsonb_exists(roles::jsonb, :role)',
+                ['role' => $role],
+            );
+    }
+
     //    /**
     //     * @return User[] Returns an array of User objects
     //     */
