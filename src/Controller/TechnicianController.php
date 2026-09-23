@@ -196,6 +196,8 @@ final class TechnicianController extends AbstractController
             'categories' => $categoryRepository->findBy([], ['name' => 'ASC']),
             'allowed_statuses' => Ticket::ALLOWED_STATUSES,
             'allowed_priorities' => Ticket::ALLOWED_PRIORITIES,
+            'status_labels' => self::STATUS_LABELS,
+            'priority_labels' => self::PRIORITY_LABELS,
             'can_update_status' => $this->isAssignedTechnician($ticket, $this->getUser()),
             'can_update_priority' => $this->isAssignedTechnician($ticket, $this->getUser()),
             'can_update_category' => $this->isAssignedTechnician($ticket, $this->getUser()),

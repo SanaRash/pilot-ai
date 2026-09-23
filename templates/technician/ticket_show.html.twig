@@ -3,269 +3,523 @@
 {% block title %}{{ ticket.title }} | Pilot AI{% endblock %}
 
 {% block body %}
+    <style>
+        .technician-ticket-detail {
+            min-height: 100vh;
+            padding: 3.5rem;
+            background: #f8fafc;
+            color: #0f172a;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
 
-    <h1>{{ ticket.title }}</h1>
+        .technician-ticket-detail__content {
+            width: min(100%, 75rem);
+            margin: 0 auto;
+        }
 
-    {% for message in app.flashes('success') %}
-        <div>
-            {{ message }}
-        </div>
-    {% endfor %}
+        .technician-ticket-detail__nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
 
-    {% for message in app.flashes('error') %}
-        <div>
-            {{ message }}
-        </div>
-    {% endfor %}
+        .technician-ticket-detail__nav a,
+        .technician-ticket-detail__button {
+            display: inline-block;
+            padding: 0.65rem 0.9rem;
+            border: 1px solid #2563eb;
+            border-radius: 0.5rem;
+            background: #2563eb;
+            color: #fff;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+        }
 
-    {% for message in app.flashes('info') %}
-        <div>
-            {{ message }}
-        </div>
-    {% endfor %}
+        .technician-ticket-detail__button--secondary {
+            border-color: #cbd5e1;
+            background: #fff;
+            color: #0f172a;
+        }
 
-    {% for message in app.flashes('warning') %}
-        <div>
-            {{ message }}
-        </div>
-    {% endfor %}
+        .technician-ticket-detail__header {
+            display: grid;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
 
-    <dl>
-        <dt>Description</dt>
-        <dd>{{ ticket.description }}</dd>
+        .technician-ticket-detail__reference {
+            color: #2563eb;
+            font-size: 0.8125rem;
+            font-weight: 700;
+        }
 
-        <dt>Client</dt>
-        <dd>{{ ticket.createdBy.firstname }} {{ ticket.createdBy.lastname }}</dd>
+        .technician-ticket-detail h1 {
+            margin: 0;
+            font-size: 2rem;
+            line-height: 1.2;
+        }
 
-        <dt>Technicien assigné</dt>
-        <dd>
-            {% if ticket.assignedTo %}
-                {{ ticket.assignedTo.firstname }} {{ ticket.assignedTo.lastname }}
-            {% else %}
-                Non assigné
-            {% endif %}
-        </dd>
+        .technician-ticket-detail h2 {
+            margin: 0 0 1rem;
+            font-size: 1.25rem;
+        }
 
-        <dt>Statut</dt>
-        <dd>{{ ticket.status }}</dd>
+        .technician-ticket-detail h3,
+        .technician-ticket-detail h4 {
+            margin: 0 0 0.75rem;
+        }
 
-        <dt>Priorité</dt>
-        <dd>{{ ticket.priority }}</dd>
+        .technician-ticket-detail__grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.4fr) minmax(20rem, 0.8fr);
+            gap: 1.25rem;
+            align-items: start;
+        }
 
-        <dt>Catégorie</dt>
-        <dd>{{ ticket.category ? ticket.category.name : 'Non catégorisé' }}</dd>
+        .technician-ticket-detail__stack {
+            display: grid;
+            gap: 1.25rem;
+        }
 
-        <dt>Source</dt>
-        <dd>{{ ticket.source }}</dd>
+        .technician-ticket-detail__card {
+            padding: 1.5rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.875rem;
+            background: #fff;
+        }
 
-        <dt>Date de création</dt>
-        <dd>{{ ticket.createdAt|date('d/m/Y H:i') }}</dd>
-    </dl>
+        .technician-ticket-detail__description {
+            margin: 0 0 1.25rem;
+            color: #334155;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
 
-    {% if not ticket.assignedTo %}
-        <form method="post" action="{{ path('app_technician_ticket_assign', {id: ticket.id}) }}">
-            <input type="hidden" name="_token" value="{{ csrf_token('assign-ticket-' ~ ticket.id) }}">
-            <button type="submit">M'assigner ce ticket</button>
-        </form>
-    {% endif %}
+        .technician-ticket-detail__meta {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1rem;
+            margin: 0;
+        }
 
-    {% if can_update_status %}
-        <form method="post" action="{{ path('app_technician_ticket_status', {id: ticket.id}) }}">
-            <input type="hidden" name="_token" value="{{ csrf_token('update-ticket-status-' ~ ticket.id) }}">
+        .technician-ticket-detail__meta dt {
+            color: #64748b;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
 
-            <label for="ticket-status">Statut</label>
-            <select id="ticket-status" name="status">
-                {% for status in allowed_statuses %}
-                    <option value="{{ status }}"{% if ticket.status == status %} selected{% endif %}>{{ status }}</option>
+        .technician-ticket-detail__meta dd {
+            margin: 0.25rem 0 0;
+            color: #0f172a;
+            font-size: 0.9375rem;
+        }
+
+        .technician-ticket-detail__badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .technician-ticket-detail__badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.375rem 0.625rem;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: #2563eb;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .technician-ticket-detail__badge--priority {
+            background: #fef3c7;
+            color: #b45309;
+        }
+
+        .technician-ticket-detail__form {
+            display: grid;
+            gap: 0.75rem;
+            margin: 0 0 1rem;
+        }
+
+        .technician-ticket-detail__form:last-child {
+            margin-bottom: 0;
+        }
+
+        .technician-ticket-detail__form label {
+            color: #334155;
+            font-size: 0.8125rem;
+            font-weight: 700;
+        }
+
+        .technician-ticket-detail__form select,
+        .technician-ticket-detail__form textarea,
+        .technician-ticket-detail__form input {
+            width: 100%;
+            padding: 0.65rem 0.75rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 0.5rem;
+            font: inherit;
+        }
+
+        .technician-ticket-detail__list,
+        .technician-ticket-detail__timeline {
+            display: grid;
+            gap: 1rem;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .technician-ticket-detail__item {
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            background: #f8fafc;
+        }
+
+        .technician-ticket-detail__item p {
+            margin: 0.5rem 0 0;
+            color: #475569;
+        }
+
+        .technician-ticket-detail__empty {
+            margin: 0;
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            background: #f8fafc;
+            color: #64748b;
+        }
+
+        .technician-ticket-detail__flash {
+            margin: 0 0 1rem;
+            padding: 0.85rem 1rem;
+            border-radius: 0.75rem;
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        .technician-ticket-detail__flash--success {
+            background: #f0fdf4;
+            color: #166534;
+        }
+
+        .technician-ticket-detail__flash--error {
+            background: #fef2f2;
+            color: #991b1b;
+        }
+
+        .technician-ticket-detail__flash--warning {
+            background: #fffbeb;
+            color: #92400e;
+        }
+
+        @media (max-width: 60rem) {
+            .technician-ticket-detail {
+                padding: 1.5rem;
+            }
+
+            .technician-ticket-detail__grid,
+            .technician-ticket-detail__meta {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+
+    <main class="technician-ticket-detail">
+        <div class="technician-ticket-detail__content">
+            <nav class="technician-ticket-detail__nav" aria-label="Navigation technicien">
+                <a href="{{ path('app_technician') }}">Dashboard technicien</a>
+                <a href="{{ path('app_technician_tickets') }}">Tickets ouverts</a>
+                <a href="{{ path('app_technician_assigned_tickets') }}">Mes tickets assignés</a>
+            </nav>
+
+            {% for type in ['success', 'error', 'info', 'warning'] %}
+                {% for message in app.flashes(type) %}
+                    <div class="technician-ticket-detail__flash technician-ticket-detail__flash--{{ type }}">
+                        {{ message }}
+                    </div>
                 {% endfor %}
-            </select>
-
-            <button type="submit">Modifier le statut</button>
-        </form>
-    {% endif %}
-
-    {% if can_update_priority %}
-        <form method="post" action="{{ path('app_technician_ticket_priority', {id: ticket.id}) }}">
-            <input type="hidden" name="_token" value="{{ csrf_token('update-ticket-priority-' ~ ticket.id) }}">
-
-            <label for="ticket-priority">Priorité</label>
-            <select id="ticket-priority" name="priority">
-                {% for priority in allowed_priorities %}
-                    <option value="{{ priority }}"{% if ticket.priority == priority %} selected{% endif %}>{{ priority }}</option>
-                {% endfor %}
-            </select>
-
-            <button type="submit">Modifier la priorité</button>
-        </form>
-    {% endif %}
-
-    {% if can_update_category %}
-        {% if categories is not empty %}
-            <form method="post" action="{{ path('app_technician_ticket_category', {id: ticket.id}) }}">
-                <input type="hidden" name="_token" value="{{ csrf_token('update-ticket-category-' ~ ticket.id) }}">
-
-                <label for="ticket-category">Catégorie</label>
-                <select id="ticket-category" name="category_id">
-                    {% for category in categories %}
-                        <option value="{{ category.id }}"{% if ticket.category and ticket.category.id == category.id %} selected{% endif %}>{{ category.name }}</option>
-                    {% endfor %}
-                </select>
-
-                <button type="submit">Modifier la catégorie</button>
-            </form>
-        {% else %}
-            <p>Aucune catégorie n'est disponible.</p>
-        {% endif %}
-    {% endif %}
-
-    <h2>Analyses IA</h2>
-
-    <p>Ces éléments sont des recommandations. Toute décision reste prise manuellement par un technicien.</p>
-
-    {% if ai_analyses is empty %}
-        <p>Aucune analyse IA disponible pour ce ticket.</p>
-    {% else %}
-        {% for analysis in ai_analyses %}
-            <article>
-                <h3>Analyse du {{ analysis.createdAt|date('d/m/Y H:i') }}</h3>
-
-                <dl>
-                    <dt>Résumé</dt>
-                    <dd>{{ analysis.summary ?? '—' }}</dd>
-
-                    <dt>Priorité proposée</dt>
-                    <dd>{{ analysis.suggestedPriority ?? '—' }}</dd>
-
-                    <dt>Catégorie proposée</dt>
-                    <dd>{{ analysis.suggestedCategory ?? '—' }}</dd>
-                </dl>
-
-                <h4>Mots-clés</h4>
-                {% if analysis.keywords is empty %}
-                    <p>—</p>
-                {% else %}
-                    <ul>
-                        {% for keyword in analysis.keywords %}
-                            <li>{{ keyword }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-
-                <h4>Suggestions</h4>
-                {% if analysis.suggestions is empty %}
-                    <p>—</p>
-                {% else %}
-                    <ul>
-                        {% for suggestion in analysis.suggestions %}
-                            <li>{{ suggestion }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-            </article>
-        {% endfor %}
-    {% endif %}
-
-    <h2>Tickets similaires</h2>
-
-    {% if similar_tickets is empty %}
-        <p>Aucun ticket similaire trouvé.</p>
-    {% else %}
-        <ul>
-            {% for similar_ticket in similar_tickets %}
-                <li>
-                    <a href="{{ path('app_technician_ticket_show', {id: similar_ticket.id}) }}">
-                        #{{ similar_ticket.id }} — {{ similar_ticket.title }}
-                    </a>
-                    — {{ similar_ticket.status }}
-                    — {{ similar_ticket.priority }}
-                    — {{ similar_ticket.category ? similar_ticket.category.name : 'Non catégorisé' }}
-                    — {{ similar_ticket.createdAt|date('d/m/Y H:i') }}
-                </li>
             {% endfor %}
-        </ul>
-    {% endif %}
 
-    <h2>Interventions</h2>
+            <header class="technician-ticket-detail__header">
+                <div class="technician-ticket-detail__reference">#{{ ticket.id }}</div>
+                <h1>{{ ticket.title }}</h1>
+                <div class="technician-ticket-detail__badges">
+                    <span class="technician-ticket-detail__badge">{{ status_labels[ticket.status] }}</span>
+                    <span class="technician-ticket-detail__badge technician-ticket-detail__badge--priority">{{ priority_labels[ticket.priority] }}</span>
+                </div>
+            </header>
 
-    {% if interventions is empty %}
-        <p>Aucune intervention pour ce ticket.</p>
-    {% else %}
-        <ol>
-            {% for intervention in interventions %}
-                <li>
-                    <p>{{ intervention.content }}</p>
-                    <p>
-                        Par {{ intervention.technician.firstname }} {{ intervention.technician.lastname }}
-                        le {{ intervention.createdAt|date('d/m/Y H:i') }}
-                    </p>
-                </li>
-            {% endfor %}
-        </ol>
-    {% endif %}
+            <div class="technician-ticket-detail__grid">
+                <div class="technician-ticket-detail__stack">
+                    <section class="technician-ticket-detail__card" aria-labelledby="ticket-info-title">
+                        <h2 id="ticket-info-title">Ticket / informations</h2>
+                        <p class="technician-ticket-detail__description">{{ ticket.description }}</p>
 
-    <h2>Historique</h2>
+                        <dl class="technician-ticket-detail__meta">
+                            <div>
+                                <dt>Client</dt>
+                                <dd>{{ ticket.createdBy.firstname }} {{ ticket.createdBy.lastname }}</dd>
+                            </div>
+                            <div>
+                                <dt>Statut</dt>
+                                <dd>{{ status_labels[ticket.status] }}</dd>
+                            </div>
+                            <div>
+                                <dt>Priorité</dt>
+                                <dd>{{ priority_labels[ticket.priority] }}</dd>
+                            </div>
+                            <div>
+                                <dt>Catégorie</dt>
+                                <dd>{{ ticket.category ? ticket.category.name : 'Non catégorisé' }}</dd>
+                            </div>
+                            <div>
+                                <dt>Assignation</dt>
+                                <dd>
+                                    {% if ticket.assignedTo %}
+                                        {{ ticket.assignedTo.firstname }} {{ ticket.assignedTo.lastname }}
+                                    {% else %}
+                                        Non assigné
+                                    {% endif %}
+                                </dd>
+                            </div>
+                            <div>
+                                <dt>Date de création</dt>
+                                <dd>{{ ticket.createdAt|date('d/m/Y H:i') }}</dd>
+                            </div>
+                        </dl>
+                    </section>
 
-    {% if ticket_history is empty %}
-        <p>Aucun historique pour ce ticket.</p>
-    {% else %}
-        <table>
-            <thead>
-                <tr>
-                    <th>Action</th>
-                    <th>Ancienne valeur</th>
-                    <th>Nouvelle valeur</th>
-                    <th>Auteur</th>
-                    <th>Date</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for history in ticket_history %}
-                    <tr>
-                        <td>{{ history_action_labels[history.action] ?? history.action }}</td>
-                        <td>
-                            {% if history.action == 'TICKET_ASSIGNED' %}
-                                {{ history.oldValue is null ? 'Non assigné' : 'Technicien #' ~ history.oldValue }}
-                            {% elseif history.action == 'CATEGORY_CHANGED' %}
-                                {{ history.oldValue is null ? 'Non catégorisé' : 'Catégorie #' ~ history.oldValue }}
+                    <section class="technician-ticket-detail__card" aria-labelledby="ai-title">
+                        <h2 id="ai-title">Analyses IA</h2>
+                        <p>Ces éléments sont des recommandations. Toute décision reste prise manuellement par un technicien.</p>
+
+                        {% if ai_analyses is empty %}
+                            <p class="technician-ticket-detail__empty">Aucune analyse IA disponible pour ce ticket.</p>
+                        {% else %}
+                            <div class="technician-ticket-detail__list">
+                                {% for analysis in ai_analyses %}
+                                    <article class="technician-ticket-detail__item">
+                                        <h3>Analyse du {{ analysis.createdAt|date('d/m/Y H:i') }}</h3>
+                                        <dl class="technician-ticket-detail__meta">
+                                            <div>
+                                                <dt>Résumé</dt>
+                                                <dd>{{ analysis.summary ?? '—' }}</dd>
+                                            </div>
+                                            <div>
+                                                <dt>Priorité proposée</dt>
+                                                <dd>
+                                                    {% if analysis.suggestedPriority %}
+                                                        {{ priority_labels[analysis.suggestedPriority] ?? analysis.suggestedPriority }}
+                                                    {% else %}
+                                                        —
+                                                    {% endif %}
+                                                </dd>
+                                            </div>
+                                            <div>
+                                                <dt>Catégorie proposée</dt>
+                                                <dd>{{ analysis.suggestedCategory ?? '—' }}</dd>
+                                            </div>
+                                        </dl>
+
+                                        <h4>Mots-clés</h4>
+                                        {% if analysis.keywords is empty %}
+                                            <p>—</p>
+                                        {% else %}
+                                            <ul>
+                                                {% for keyword in analysis.keywords %}
+                                                    <li>{{ keyword }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        {% endif %}
+
+                                        <h4>Suggestions</h4>
+                                        {% if analysis.suggestions is empty %}
+                                            <p>—</p>
+                                        {% else %}
+                                            <ul>
+                                                {% for suggestion in analysis.suggestions %}
+                                                    <li>{{ suggestion }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        {% endif %}
+                                    </article>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </section>
+
+                    <section class="technician-ticket-detail__card" aria-labelledby="similar-title">
+                        <h2 id="similar-title">Tickets similaires</h2>
+
+                        {% if similar_tickets is empty %}
+                            <p class="technician-ticket-detail__empty">Aucun ticket similaire trouvé.</p>
+                        {% else %}
+                            <ul class="technician-ticket-detail__list">
+                                {% for similar_ticket in similar_tickets %}
+                                    <li class="technician-ticket-detail__item">
+                                        <a href="{{ path('app_technician_ticket_show', {id: similar_ticket.id}) }}">
+                                            #{{ similar_ticket.id }} — {{ similar_ticket.title }}
+                                        </a>
+                                        <p>
+                                            {{ status_labels[similar_ticket.status] }}
+                                            — {{ priority_labels[similar_ticket.priority] }}
+                                            — {{ similar_ticket.category ? similar_ticket.category.name : 'Non catégorisé' }}
+                                            — {{ similar_ticket.createdAt|date('d/m/Y H:i') }}
+                                        </p>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </section>
+
+                    <section class="technician-ticket-detail__card" aria-labelledby="interventions-title">
+                        <h2 id="interventions-title">Interventions</h2>
+
+                        {% if interventions is empty %}
+                            <p class="technician-ticket-detail__empty">Aucune intervention pour ce ticket.</p>
+                        {% else %}
+                            <ol class="technician-ticket-detail__timeline">
+                                {% for intervention in interventions %}
+                                    <li class="technician-ticket-detail__item">
+                                        <p>{{ intervention.content }}</p>
+                                        <p>
+                                            Par {{ intervention.technician.firstname }} {{ intervention.technician.lastname }}
+                                            le {{ intervention.createdAt|date('d/m/Y H:i') }}
+                                        </p>
+                                    </li>
+                                {% endfor %}
+                            </ol>
+                        {% endif %}
+
+                        {% if can_add_intervention %}
+                            <h3>Ajouter une intervention</h3>
+                            {{ form_start(intervention_form, {attr: {class: 'technician-ticket-detail__form'}}) }}
+                                {{ form_errors(intervention_form) }}
+                                {{ form_row(intervention_form.content, {label: 'Contenu'}) }}
+                                <button class="technician-ticket-detail__button" type="submit">Ajouter l'intervention</button>
+                            {{ form_end(intervention_form) }}
+                        {% endif %}
+                    </section>
+
+                    <section class="technician-ticket-detail__card" aria-labelledby="history-title">
+                        <h2 id="history-title">Historique</h2>
+
+                        {% if ticket_history is empty %}
+                            <p class="technician-ticket-detail__empty">Aucun historique pour ce ticket.</p>
+                        {% else %}
+                            <ol class="technician-ticket-detail__timeline">
+                                {% for history in ticket_history %}
+                                    <li class="technician-ticket-detail__item">
+                                        <strong>{{ history_action_labels[history.action] ?? history.action }}</strong>
+                                        <p>
+                                            Ancienne valeur :
+                                            {% if history.action == 'TICKET_ASSIGNED' %}
+                                                {{ history.oldValue is null ? 'Non assigné' : 'Technicien #' ~ history.oldValue }}
+                                            {% elseif history.action == 'CATEGORY_CHANGED' %}
+                                                {{ history.oldValue is null ? 'Non catégorisé' : 'Catégorie #' ~ history.oldValue }}
+                                            {% else %}
+                                                {{ history.oldValue ?? '—' }}
+                                            {% endif %}
+                                        </p>
+                                        <p>
+                                            Nouvelle valeur :
+                                            {% if history.action == 'TICKET_ASSIGNED' and history.newValue is not null %}
+                                                Technicien #{{ history.newValue }}
+                                            {% elseif history.action == 'CATEGORY_CHANGED' and history.newValue is not null %}
+                                                Catégorie #{{ history.newValue }}
+                                            {% else %}
+                                                {{ history.newValue ?? '—' }}
+                                            {% endif %}
+                                        </p>
+                                        <p>
+                                            Auteur :
+                                            {% if history.changedBy %}
+                                                {{ history.changedBy.firstname }} {{ history.changedBy.lastname }}
+                                            {% else %}
+                                                Système
+                                            {% endif %}
+                                            — {{ history.createdAt|date('d/m/Y H:i') }}
+                                        </p>
+                                    </li>
+                                {% endfor %}
+                            </ol>
+                        {% endif %}
+                    </section>
+                </div>
+
+                <aside class="technician-ticket-detail__stack" aria-label="Actions du ticket">
+                    <section class="technician-ticket-detail__card">
+                        <h2>Actions</h2>
+
+                        {% if not ticket.assignedTo %}
+                            <form class="technician-ticket-detail__form" method="post" action="{{ path('app_technician_ticket_assign', {id: ticket.id}) }}">
+                                <input type="hidden" name="_token" value="{{ csrf_token('assign-ticket-' ~ ticket.id) }}">
+                                <button class="technician-ticket-detail__button" type="submit">M'assigner ce ticket</button>
+                            </form>
+                        {% endif %}
+
+                        {% if can_update_status %}
+                            <form class="technician-ticket-detail__form" method="post" action="{{ path('app_technician_ticket_status', {id: ticket.id}) }}">
+                                <input type="hidden" name="_token" value="{{ csrf_token('update-ticket-status-' ~ ticket.id) }}">
+
+                                <label for="ticket-status">Statut</label>
+                                <select id="ticket-status" name="status">
+                                    {% for status in allowed_statuses %}
+                                        <option value="{{ status }}"{% if ticket.status == status %} selected{% endif %}>{{ status_labels[status] }}</option>
+                                    {% endfor %}
+                                </select>
+
+                                <button class="technician-ticket-detail__button" type="submit">Modifier le statut</button>
+                            </form>
+                        {% endif %}
+
+                        {% if can_update_priority %}
+                            <form class="technician-ticket-detail__form" method="post" action="{{ path('app_technician_ticket_priority', {id: ticket.id}) }}">
+                                <input type="hidden" name="_token" value="{{ csrf_token('update-ticket-priority-' ~ ticket.id) }}">
+
+                                <label for="ticket-priority">Priorité</label>
+                                <select id="ticket-priority" name="priority">
+                                    {% for priority in allowed_priorities %}
+                                        <option value="{{ priority }}"{% if ticket.priority == priority %} selected{% endif %}>{{ priority_labels[priority] }}</option>
+                                    {% endfor %}
+                                </select>
+
+                                <button class="technician-ticket-detail__button" type="submit">Modifier la priorité</button>
+                            </form>
+                        {% endif %}
+
+                        {% if can_update_category %}
+                            {% if categories is not empty %}
+                                <form class="technician-ticket-detail__form" method="post" action="{{ path('app_technician_ticket_category', {id: ticket.id}) }}">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('update-ticket-category-' ~ ticket.id) }}">
+
+                                    <label for="ticket-category">Catégorie</label>
+                                    <select id="ticket-category" name="category_id">
+                                        {% for category in categories %}
+                                            <option value="{{ category.id }}"{% if ticket.category and ticket.category.id == category.id %} selected{% endif %}>{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+
+                                    <button class="technician-ticket-detail__button" type="submit">Modifier la catégorie</button>
+                                </form>
                             {% else %}
-                                {{ history.oldValue ?? '—' }}
+                                <p class="technician-ticket-detail__empty">Aucune catégorie n'est disponible.</p>
                             {% endif %}
-                        </td>
-                        <td>
-                            {% if history.action == 'TICKET_ASSIGNED' and history.newValue is not null %}
-                                Technicien #{{ history.newValue }}
-                            {% elseif history.action == 'CATEGORY_CHANGED' and history.newValue is not null %}
-                                Catégorie #{{ history.newValue }}
-                            {% else %}
-                                {{ history.newValue ?? '—' }}
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if history.changedBy %}
-                                {{ history.changedBy.firstname }} {{ history.changedBy.lastname }}
-                            {% else %}
-                                Système
-                            {% endif %}
-                        </td>
-                        <td>{{ history.createdAt|date('d/m/Y H:i') }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% endif %}
+                        {% endif %}
 
-    {% if can_add_intervention %}
-        <h2>Ajouter une intervention</h2>
-
-        {{ form_start(intervention_form) }}
-            {{ form_errors(intervention_form) }}
-            {{ form_row(intervention_form.content, {label: 'Contenu'}) }}
-            <button type="submit">Ajouter l'intervention</button>
-        {{ form_end(intervention_form) }}
-    {% endif %}
-
-    <p>
-        <a href="{{ path('app_technician_tickets') }}">Retour à la liste des tickets</a>
-    </p>
-
+                        {% if ticket.assignedTo and not can_update_status and not can_update_priority and not can_update_category and not can_add_intervention %}
+                            <p class="technician-ticket-detail__empty">Aucune action disponible pour ce ticket.</p>
+                        {% endif %}
+                    </section>
+                </aside>
+            </div>
+        </div>
+    </main>
 {% endblock %}

@@ -10,7 +10,7 @@
 - [x] dashboard
 - [x] tickets ouverts
 - [x] tickets assignés
-- [ ] détail / actions
+- [x] détail / actions
 
 ## Admin
 - [ ] dashboard
