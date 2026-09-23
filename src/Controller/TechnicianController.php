@@ -80,6 +80,22 @@ final class TechnicianController extends AbstractController
         ]);
     }
 
+    #[Route('/technician/tickets/assigned', name: 'app_technician_assigned_tickets', methods: ['GET'])]
+    public function assignedTickets(TicketRepository $ticketRepository): Response
+    {
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            throw $this->createAccessDeniedException();
+        }
+
+        return $this->render('technician/assigned_tickets.html.twig', [
+            'tickets' => $ticketRepository->findAllAssignedToTechnicianExcludingClosed($user),
+            'status_labels' => self::STATUS_LABELS,
+            'priority_labels' => self::PRIORITY_LABELS,
+        ]);
+    }
+
     #[Route('/technician/tickets/{id}', name: 'app_technician_ticket_show', methods: ['GET'])]
     public function show(
         Ticket $ticket,

@@ -82,6 +82,22 @@ class TicketRepository extends ServiceEntityRepository
             ->getSingleScalarResult();
     }
 
+    /**
+     * @return list<Ticket>
+     */
+    public function findAllAssignedToTechnicianExcludingClosed(User $technician): array
+    {
+        return $this->createQueryBuilder('ticket')
+            ->andWhere('ticket.assignedTo = :technician')
+            ->andWhere('ticket.status != :closedStatus')
+            ->setParameter('technician', $technician)
+            ->setParameter('closedStatus', Ticket::STATUS_CLOSED)
+            ->orderBy('ticket.createdAt', 'DESC')
+            ->addOrderBy('ticket.id', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
     public function countOpenUnassignedTickets(): int
     {
         return (int) $this->createQueryBuilder('ticket')

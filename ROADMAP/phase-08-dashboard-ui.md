@@ -9,7 +9,7 @@
 ## Technicien
 - [x] dashboard
 - [x] tickets ouverts
-- [ ] tickets assignés
+- [x] tickets assignés
 - [ ] détail / actions
 
 ## Admin
