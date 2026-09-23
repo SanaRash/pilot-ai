@@ -56,6 +56,20 @@ class TicketRepository extends ServiceEntityRepository
             ->getSingleScalarResult();
     }
 
+    /**
+     * @return list<Ticket>
+     */
+    public function findOpenTickets(): array
+    {
+        return $this->createQueryBuilder('ticket')
+            ->andWhere('ticket.status = :status')
+            ->setParameter('status', Ticket::STATUS_OPEN)
+            ->orderBy('ticket.createdAt', 'DESC')
+            ->addOrderBy('ticket.id', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
     public function countAssignedToTechnicianExcludingClosed(User $technician): int
     {
         return (int) $this->createQueryBuilder('ticket')

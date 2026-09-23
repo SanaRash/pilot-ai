@@ -70,16 +70,13 @@ final class TechnicianController extends AbstractController
         ]);
     }
 
-    #[Route('/technician/tickets', name: 'app_technician_tickets')]
+    #[Route('/technician/tickets', name: 'app_technician_tickets', methods: ['GET'])]
     public function tickets(TicketRepository $ticketRepository): Response
     {
-        $tickets = $ticketRepository->findBy(
-            [],
-            ['createdAt' => 'DESC']
-        );
-
         return $this->render('technician/tickets.html.twig', [
-            'tickets' => $tickets,
+            'tickets' => $ticketRepository->findOpenTickets(),
+            'status_labels' => self::STATUS_LABELS,
+            'priority_labels' => self::PRIORITY_LABELS,
         ]);
     }
 

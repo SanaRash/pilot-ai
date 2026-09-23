@@ -1,64 +1,186 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Tickets | Pilot AI{% endblock %}
+{% block title %}Tickets ouverts | Pilot AI{% endblock %}
 
 {% block body %}
+    <style>
+        .technician-open-tickets {
+            min-height: 100vh;
+            padding: 3.5rem;
+            background: #f8fafc;
+            color: #0f172a;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
 
-    <h1>Tickets</h1>
+        .technician-open-tickets__content {
+            width: min(100%, 73.75rem);
+            margin: 0 auto;
+        }
 
-    {% if tickets is empty %}
-        <p>Aucun ticket pour le moment.</p>
-    {% else %}
+        .technician-open-tickets__header {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+        }
 
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Titre</th>
-                    <th>Client</th>
-                    <th>Statut</th>
-                    <th>Priorité</th>
-                    <th>Source</th>
-                    <th>Date</th>
-                </tr>
-            </thead>
+        .technician-open-tickets h1 {
+            margin: 0;
+            font-size: 1.875rem;
+            line-height: 1.2;
+        }
 
-            <tbody>
-                {% for ticket in tickets %}
-                    <tr>
-                        <td>{{ ticket.id }}</td>
+        .technician-open-tickets__subtitle {
+            margin: 0.5rem 0 0;
+            color: #64748b;
+            font-size: 0.9375rem;
+        }
 
-                        <td>
-                            <a href="{{ path('app_technician_ticket_show', {id: ticket.id}) }}">
-                                {{ ticket.title }}
-                            </a>
-                        </td>
+        .technician-open-tickets__action {
+            display: inline-block;
+            flex: none;
+            padding: 0.65rem 0.9rem;
+            border: 1px solid #2563eb;
+            border-radius: 0.5rem;
+            background: #2563eb;
+            color: #fff;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-decoration: none;
+        }
 
-                        <td>
-                            {{ ticket.createdBy.firstname }}
-                            {{ ticket.createdBy.lastname }}
-                        </td>
+        .technician-open-tickets__grid {
+            display: grid;
+            gap: 1rem;
+        }
 
-                        <td>
-                            {{ ticket.status }}
-                        </td>
+        .technician-open-ticket-card {
+            display: grid;
+            gap: 0.85rem;
+            padding: 1.25rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            background: #fff;
+        }
 
-                        <td>
-                            {{ ticket.priority }}
-                        </td>
+        .technician-open-ticket-card__top {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+            justify-content: space-between;
+        }
 
-                        <td>
-                            {{ ticket.source }}
-                        </td>
+        .technician-open-ticket-card__reference {
+            color: #2563eb;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
 
-                        <td>
-                            {{ ticket.createdAt|date('d/m/Y H:i') }}
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        .technician-open-ticket-card__title {
+            display: inline-block;
+            margin-top: 0.35rem;
+            color: #0f172a;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+        }
 
-    {% endif %}
+        .technician-open-ticket-card__title:hover,
+        .technician-open-ticket-card__title:focus-visible {
+            color: #2563eb;
+            text-decoration: underline;
+        }
 
+        .technician-open-ticket-card__status {
+            flex: none;
+            padding: 0.375rem 0.625rem;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: #2563eb;
+            font-size: 0.6875rem;
+            font-weight: 700;
+        }
+
+        .technician-open-ticket-card__meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem 0.875rem;
+            margin: 0;
+            color: #64748b;
+            font-size: 0.75rem;
+        }
+
+        .technician-open-tickets__empty {
+            padding: 1.5rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            background: #fff;
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+
+        @media (max-width: 48rem) {
+            .technician-open-tickets {
+                padding: 1.5rem;
+            }
+
+            .technician-open-tickets__header,
+            .technician-open-ticket-card__top {
+                flex-direction: column;
+            }
+
+            .technician-open-tickets__action {
+                width: 100%;
+                text-align: center;
+            }
+        }
+    </style>
+
+    <main class="technician-open-tickets">
+        <div class="technician-open-tickets__content">
+            <header class="technician-open-tickets__header">
+                <div>
+                    <h1>Tickets ouverts</h1>
+                    <p class="technician-open-tickets__subtitle">Consultez les demandes ouvertes, qu’elles soient assignées ou non.</p>
+                </div>
+
+                <a class="technician-open-tickets__action" href="{{ path('app_technician') }}">← Dashboard technicien</a>
+            </header>
+
+            {% if tickets is empty %}
+                <div class="technician-open-tickets__empty">Aucun ticket ouvert pour le moment.</div>
+            {% else %}
+                <div class="technician-open-tickets__grid">
+                    {% for ticket in tickets %}
+                        <article class="technician-open-ticket-card">
+                            <div class="technician-open-ticket-card__top">
+                                <div>
+                                    <div class="technician-open-ticket-card__reference">#{{ ticket.id }}</div>
+                                    <a class="technician-open-ticket-card__title" href="{{ path('app_technician_ticket_show', {id: ticket.id}) }}">{{ ticket.title }}</a>
+                                </div>
+
+                                <span class="technician-open-ticket-card__status">{{ status_labels[ticket.status] }}</span>
+                            </div>
+
+                            <p class="technician-open-ticket-card__meta">
+                                <span>Client : {{ ticket.createdBy.firstname }} {{ ticket.createdBy.lastname }}</span>
+                                <span>Priorité : {{ priority_labels[ticket.priority] }}</span>
+                                <span>Catégorie : {{ ticket.category ? ticket.category.name : 'Non catégorisé' }}</span>
+                                <span>
+                                    Assignation :
+                                    {% if ticket.assignedTo %}
+                                        Assigné à {{ ticket.assignedTo.firstname }} {{ ticket.assignedTo.lastname }}
+                                    {% else %}
+                                        Non assigné
+                                    {% endif %}
+                                </span>
+                                <span>Date : {{ ticket.createdAt|date('d/m/Y H:i') }}</span>
+                            </p>
+                        </article>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </main>
 {% endblock %}
