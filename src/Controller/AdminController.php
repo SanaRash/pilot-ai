@@ -62,4 +62,12 @@ final class AdminController extends AbstractController
             'role_labels' => self::ROLE_LABELS,
         ]);
     }
+
+    #[Route('/admin/categories', name: 'app_admin_categories', methods: ['GET'])]
+    public function categories(CategoryRepository $categoryRepository): Response
+    {
+        return $this->render('admin/categories.html.twig', [
+            'categories' => $categoryRepository->findAllWithTicketCountForAdmin(),
+        ]);
+    }
 }

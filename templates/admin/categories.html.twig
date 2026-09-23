@@ -1,0 +1,133 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Catégories admin | Pilot AI{% endblock %}
+
+{% block body %}
+    <style>
+        .admin-categories {
+            min-height: 100vh;
+            padding: 3.5rem;
+            background: #f8fafc;
+            color: #0f172a;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .admin-categories__content {
+            width: min(100%, 76rem);
+            margin: 0 auto;
+        }
+
+        .admin-categories__header {
+            margin-bottom: 1.5rem;
+        }
+
+        .admin-categories h1 {
+            margin: 0;
+            font-size: 2rem;
+            line-height: 1.2;
+        }
+
+        .admin-categories__subtitle {
+            margin: 0.5rem 0 0;
+            color: #64748b;
+        }
+
+        .admin-categories__section {
+            padding: 1.5rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.875rem;
+            background: #fff;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+
+        .admin-categories__table-wrapper {
+            overflow-x: auto;
+        }
+
+        .admin-categories__table {
+            width: 100%;
+            min-width: 34rem;
+            border-collapse: collapse;
+        }
+
+        .admin-categories__table th,
+        .admin-categories__table td {
+            padding: 0.85rem 0.75rem;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+        }
+
+        .admin-categories__table th {
+            color: #64748b;
+            font-size: 0.75rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .admin-categories__badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.3rem 0.55rem;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: #2563eb;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .admin-categories__empty {
+            margin: 0;
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            background: #f8fafc;
+            color: #64748b;
+        }
+
+        @media (max-width: 56rem) {
+            .admin-categories {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+
+    <main class="admin-categories">
+        <div class="admin-categories__content">
+            <header class="admin-categories__header">
+                <h1>Catégories</h1>
+                <p class="admin-categories__subtitle">Consultez les catégories disponibles et leur usage par les tickets.</p>
+            </header>
+
+            <section class="admin-categories__section" aria-labelledby="admin-categories-title">
+                <h2 id="admin-categories-title">Liste des catégories</h2>
+
+                {% if categories is empty %}
+                    <p class="admin-categories__empty">Aucune catégorie disponible.</p>
+                {% else %}
+                    <div class="admin-categories__table-wrapper">
+                        <table class="admin-categories__table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">ID</th>
+                                    <th scope="col">Nom</th>
+                                    <th scope="col">Tickets associés</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for category in categories %}
+                                    <tr>
+                                        <td>#{{ category.id }}</td>
+                                        <td>{{ category.name }}</td>
+                                        <td>
+                                            <span class="admin-categories__badge">{{ category.ticketCount }}</span>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+{% endblock %}

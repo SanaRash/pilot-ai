@@ -15,7 +15,7 @@
 ## Admin
 - [x] dashboard
 - [x] utilisateurs
-- [ ] catégories
+- [x] catégories
 - [ ] statistiques MVP
 
 ## UI

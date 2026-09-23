@@ -16,6 +16,33 @@ class CategoryRepository extends ServiceEntityRepository
         parent::__construct($registry, Category::class);
     }
 
+    /**
+     * @return list<array{id: int, name: string, ticketCount: int}>
+     */
+    public function findAllWithTicketCountForAdmin(): array
+    {
+        $rows = $this->createQueryBuilder('category')
+            ->select('category.id AS id')
+            ->addSelect('category.name AS name')
+            ->addSelect('COUNT(ticket.id) AS ticketCount')
+            ->leftJoin('category.tickets', 'ticket')
+            ->groupBy('category.id')
+            ->addGroupBy('category.name')
+            ->orderBy('category.name', 'ASC')
+            ->addOrderBy('category.id', 'ASC')
+            ->getQuery()
+            ->getArrayResult();
+
+        return array_map(
+            static fn (array $row): array => [
+                'id' => (int) $row['id'],
+                'name' => (string) $row['name'],
+                'ticketCount' => (int) $row['ticketCount'],
+            ],
+            $rows,
+        );
+    }
+
     //    /**
     //     * @return Category[] Returns an array of Category objects
     //     */
