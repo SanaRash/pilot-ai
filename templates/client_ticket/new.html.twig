@@ -34,17 +34,6 @@
             line-height: 1.5;
         }
 
-        .client-ticket-new__alert {
-            margin-bottom: 1rem;
-            padding: 0.85rem 1rem;
-            border: 1px solid #bbf7d0;
-            border-radius: 0.625rem;
-            background: #f0fdf4;
-            color: #166534;
-            font-size: 0.875rem;
-            font-weight: 600;
-        }
-
         .client-ticket-new__form {
             display: grid;
             gap: 1rem;
@@ -146,12 +135,6 @@
         <section class="client-ticket-new__card" aria-labelledby="new-ticket-title">
             <h1 id="new-ticket-title">Nouvelle demande</h1>
             <p class="client-ticket-new__help">Expliquez-nous votre problème. Pilot AI aidera l’équipe technique à qualifier votre demande.</p>
-
-            {% for message in app.flashes('success') %}
-                <div class="client-ticket-new__alert">
-                    {{ message }}
-                </div>
-            {% endfor %}
 
             {{ form_start(form, {attr: {class: 'client-ticket-new__form'}}) }}
                 {{ form_errors(form) }}

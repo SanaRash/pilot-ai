@@ -73,6 +73,44 @@
                 background: #f8fafc;
             }
 
+            .flash-messages {
+                display: grid;
+                gap: 0.75rem;
+                width: min(100%, 76rem);
+                margin: 1rem auto 0;
+                padding: 0 1.5rem;
+                font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            }
+
+            .flash-messages__message {
+                padding: 0.85rem 1rem;
+                border: 1px solid #bfdbfe;
+                border-radius: 0.75rem;
+                background: #eff6ff;
+                color: #1d4ed8;
+                font-size: 0.875rem;
+                font-weight: 700;
+            }
+
+            .flash-messages__message--success {
+                border-color: #bbf7d0;
+                background: #f0fdf4;
+                color: #166534;
+            }
+
+            .flash-messages__message--warning {
+                border-color: #fde68a;
+                background: #fffbeb;
+                color: #92400e;
+            }
+
+            .flash-messages__message--error,
+            .flash-messages__message--danger {
+                border-color: #fecaca;
+                background: #fef2f2;
+                color: #991b1b;
+            }
+
             @media (max-width: 48rem) {
                 .role-navigation__inner {
                     align-items: flex-start;
@@ -83,6 +121,10 @@
                 .role-navigation__group {
                     align-items: flex-start;
                     flex-direction: column;
+                }
+
+                .flash-messages {
+                    padding: 0 1rem;
                 }
             }
         </style>
@@ -103,6 +145,8 @@
         {% if app.user %}
             {% include '_role_navigation.html.twig' %}
         {% endif %}
+
+        {% include '_flash_messages.html.twig' %}
 
         {% block body %}{% endblock %}
     </body>

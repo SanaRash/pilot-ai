@@ -1,0 +1,17 @@
+{% set flashes = app.flashes() %}
+
+{% if flashes is not empty %}
+    <div class="flash-messages" aria-label="Messages">
+        {% for type, messages in flashes %}
+            {% set normalized_type = type in ['success', 'info', 'warning', 'error', 'danger'] ? type : 'info' %}
+            {% set live_role = normalized_type in ['warning', 'error', 'danger'] ? 'alert' : 'status' %}
+            {% set aria_live = normalized_type in ['warning', 'error', 'danger'] ? 'assertive' : 'polite' %}
+
+            {% for message in messages %}
+                <div class="flash-messages__message flash-messages__message--{{ normalized_type }}" role="{{ live_role }}" aria-live="{{ aria_live }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endfor %}
+    </div>
+{% endif %}
