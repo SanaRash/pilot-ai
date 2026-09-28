@@ -85,6 +85,7 @@
         }
 
         .technician-ticket-detail__card {
+            min-width: 0;
             padding: 1.5rem;
             border: 1px solid #e2e8f0;
             border-radius: 0.875rem;
@@ -93,6 +94,7 @@
 
         .technician-ticket-detail__description {
             margin: 0 0 1.25rem;
+            overflow-wrap: anywhere;
             color: #334155;
             line-height: 1.6;
             white-space: pre-wrap;
@@ -176,6 +178,8 @@
         }
 
         .technician-ticket-detail__item {
+            min-width: 0;
+            overflow-wrap: anywhere;
             padding: 1rem;
             border: 1px solid #e2e8f0;
             border-radius: 0.75rem;
@@ -204,6 +208,12 @@
             .technician-ticket-detail__grid,
             .technician-ticket-detail__meta {
                 grid-template-columns: 1fr;
+            }
+
+            .technician-ticket-detail__nav a,
+            .technician-ticket-detail__button {
+                width: 100%;
+                text-align: center;
             }
         }
     </style>

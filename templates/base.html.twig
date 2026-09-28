@@ -5,6 +5,61 @@
         <title>{% block title %}Welcome!{% endblock %}</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><text y=%221.2em%22 font-size=%2296%22>⚫️</text><text y=%221.3em%22 x=%220.2em%22 font-size=%2276%22 fill=%22%23fff%22>sf</text></svg>">
         <style>
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+            }
+
+            html,
+            body {
+                min-width: 0;
+            }
+
+            body {
+                margin: 0;
+            }
+
+            img,
+            svg,
+            video,
+            canvas {
+                max-width: 100%;
+                height: auto;
+            }
+
+            a,
+            button,
+            input,
+            select,
+            textarea {
+                max-width: 100%;
+            }
+
+            button,
+            input,
+            select,
+            textarea {
+                font: inherit;
+            }
+
+            [class$="__content"],
+            [class$="__card"],
+            [class$="__section"],
+            [class$="__header"],
+            [class$="__top"],
+            [class$="__title"],
+            [class$="__subtitle"],
+            [class$="__description"],
+            [class$="__meta"],
+            [class$="__label"],
+            [class$="__value"],
+            [class*="__badge"],
+            [class*="__status"] {
+                min-width: 0;
+                overflow-wrap: anywhere;
+            }
+
             .role-navigation {
                 border-bottom: 1px solid #e2e8f0;
                 background: #fff;
@@ -47,11 +102,13 @@
             .role-navigation__link {
                 display: inline-flex;
                 align-items: center;
+                min-height: 2.5rem;
                 padding: 0.45rem 0.65rem;
                 border-radius: 0.5rem;
                 color: #334155;
                 font-size: 0.875rem;
                 font-weight: 700;
+                overflow-wrap: anywhere;
                 text-decoration: none;
             }
 
@@ -83,6 +140,7 @@
             }
 
             .flash-messages__message {
+                max-width: 100%;
                 padding: 0.85rem 1rem;
                 border: 1px solid #bfdbfe;
                 border-radius: 0.75rem;
@@ -113,6 +171,7 @@
 
             .empty-state {
                 display: grid;
+                max-width: 100%;
                 gap: 0.85rem;
                 padding: 1.25rem;
                 border: 1px solid #e2e8f0;
@@ -124,11 +183,13 @@
             .empty-state__message {
                 margin: 0;
                 line-height: 1.5;
+                overflow-wrap: anywhere;
             }
 
             .empty-state__action {
                 display: inline-flex;
                 width: fit-content;
+                max-width: 100%;
                 align-items: center;
                 padding: 0.65rem 0.9rem;
                 border: 1px solid #2563eb;
@@ -157,6 +218,11 @@
                 .role-navigation__group {
                     align-items: flex-start;
                     flex-direction: column;
+                    width: 100%;
+                }
+
+                .role-navigation__link {
+                    width: 100%;
                 }
 
                 .flash-messages {

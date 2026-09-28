@@ -22,5 +22,5 @@
 - [x] navigation selon rôle
 - [x] flash messages
 - [x] états vides
-- [ ] responsive de base
+- [x] responsive de base
 - [ ] cohérence visuelle login/register/tickets

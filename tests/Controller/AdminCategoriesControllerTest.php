@@ -186,9 +186,9 @@ try {
     ensureAdminCategories($categoryCountBeforeRender === (int) $connection->fetchOne('SELECT COUNT(*) FROM category'), 'Rendering admin categories must not persist categories.');
     ensureAdminCategories($ticketCountBeforeRender === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket'), 'Rendering admin categories must not mutate tickets.');
 
-    $firstRenderedPosition = strpos($html, '#'.$categoryWithTwoTickets->getId());
-    $secondRenderedPosition = strpos($html, '#'.$categoryWithOneTicket->getId());
-    $thirdRenderedPosition = strpos($html, '#'.$categoryWithoutTicket->getId());
+    $firstRenderedPosition = strpos($html, '<td>#'.$categoryWithTwoTickets->getId().'</td>');
+    $secondRenderedPosition = strpos($html, '<td>#'.$categoryWithOneTicket->getId().'</td>');
+    $thirdRenderedPosition = strpos($html, '<td>#'.$categoryWithoutTicket->getId().'</td>');
     ensureAdminCategories(
         false !== $firstRenderedPosition
         && false !== $secondRenderedPosition
