@@ -160,10 +160,11 @@
             </header>
 
             {% if tickets is empty %}
-                <div class="client-tickets__empty">
-                    <p>Vous n'avez encore aucune demande de support.</p>
-                    <a class="client-tickets__action" href="{{ path('app_client_ticket_new') }}">Créer une nouvelle demande</a>
-                </div>
+                {% include '_empty_state.html.twig' with {
+                    message: "Vous n'avez encore aucune demande de support.",
+                    action_label: 'Créer une nouvelle demande',
+                    action_path: path('app_client_ticket_new')
+                } only %}
             {% else %}
                 <div class="client-tickets__list">
                     {% for ticket in tickets %}

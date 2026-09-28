@@ -170,7 +170,9 @@
                 <section class="admin-statistics__card" aria-labelledby="category-title">
                     <h2 id="category-title">Répartition par catégorie</h2>
                     {% if category_counts is empty %}
-                        <p class="admin-statistics__empty">Aucun ticket catégorisé ou non catégorisé à afficher.</p>
+                        {% include '_empty_state.html.twig' with {
+                            message: 'Aucun ticket catégorisé ou non catégorisé à afficher.'
+                        } only %}
                     {% else %}
                         <ul class="admin-statistics__list">
                             {% for category in category_counts %}

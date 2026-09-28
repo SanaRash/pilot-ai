@@ -234,7 +234,9 @@
                     <h2 id="tickets-to-take-title">Tickets à prendre</h2>
 
                     {% if tickets_to_take is empty %}
-                        <div class="technician-dashboard__empty">Aucun ticket ouvert non assigné.</div>
+                        {% include '_empty_state.html.twig' with {
+                            message: 'Aucun ticket ouvert non assigné pour le moment.'
+                        } only %}
                     {% else %}
                         <div class="technician-dashboard__tickets">
                             {% for ticket in tickets_to_take %}
@@ -248,7 +250,9 @@
                     <h2 id="assigned-tickets-title">Mes tickets assignés</h2>
 
                     {% if assigned_tickets is empty %}
-                        <div class="technician-dashboard__empty">Aucun ticket assigné en cours.</div>
+                        {% include '_empty_state.html.twig' with {
+                            message: 'Aucun ticket actif ne vous est assigné pour le moment.'
+                        } only %}
                     {% else %}
                         <div class="technician-dashboard__tickets">
                             {% for ticket in assigned_tickets %}

@@ -21,6 +21,6 @@
 ## UI
 - [x] navigation selon rôle
 - [x] flash messages
-- [ ] états vides
+- [x] états vides
 - [ ] responsive de base
 - [ ] cohérence visuelle login/register/tickets

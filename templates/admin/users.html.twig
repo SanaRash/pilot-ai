@@ -114,7 +114,9 @@
                 <h2 id="admin-users-title">Liste des utilisateurs</h2>
 
                 {% if users is empty %}
-                    <p class="admin-users__empty">Aucun utilisateur à afficher.</p>
+                    {% include '_empty_state.html.twig' with {
+                        message: 'Aucun utilisateur à afficher.'
+                    } only %}
                 {% else %}
                     <div class="admin-users__table-wrapper">
                         <table class="admin-users__table">

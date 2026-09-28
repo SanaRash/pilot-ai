@@ -249,7 +249,7 @@ try {
             Ticket::PRIORITY_URGENT => 'Urgente',
         ],
     ]);
-    ensureTechnicianAssignedTickets(str_contains($emptyHtml, 'Aucun ticket ne vous est assigné pour le moment.'), 'The empty state is missing.');
+    ensureTechnicianAssignedTickets(str_contains($emptyHtml, 'Aucun ticket actif ne vous est assigné pour le moment.'), 'The empty state is missing.');
 
     echo "Technician assigned tickets tests: PASS\n";
 } finally {

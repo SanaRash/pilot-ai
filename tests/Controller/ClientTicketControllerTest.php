@@ -200,7 +200,7 @@ try {
             Ticket::STATUS_CLOSED => 'Fermé',
         ],
     ]);
-    ensureClientTickets(str_contains($emptyHtml, "Vous n'avez encore aucune demande de support."), 'The empty state is missing.');
+    ensureClientTickets(str_contains($emptyHtml, "Vous n&#039;avez encore aucune demande de support."), 'The empty state is missing.');
     ensureClientTickets(str_contains($emptyHtml, 'Créer une nouvelle demande'), 'The empty-state action is missing.');
 
     echo "Client ticket list tests: PASS\n";

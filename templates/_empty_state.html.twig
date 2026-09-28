@@ -1,0 +1,7 @@
+<div class="empty-state">
+    <p class="empty-state__message">{{ message }}</p>
+
+    {% if action_label is defined and action_path is defined and action_label is not empty and action_path is not empty %}
+        <a class="empty-state__action" href="{{ action_path }}">{{ action_label }}</a>
+    {% endif %}
+</div>

@@ -194,7 +194,7 @@ try {
     $tokenStorage->setToken(new UsernamePasswordToken($emptyClient, 'main', $emptyClient->getRoles()));
     $emptyResponse = $controller->index($ticketRepository);
     $emptyHtml = $emptyResponse->getContent();
-    ensureClientDashboard(str_contains($emptyHtml, "Vous n'avez encore aucune demande de support."), 'The empty state is missing.');
+    ensureClientDashboard(str_contains($emptyHtml, "Vous n&#039;avez encore aucune demande de support."), 'The empty state is missing.');
     ensureClientDashboard(str_contains($emptyHtml, 'Créer une nouvelle demande'), 'The empty-state action is missing.');
 
     echo "Client dashboard tests: PASS\n";

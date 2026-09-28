@@ -270,7 +270,9 @@
                         <p>Ces éléments sont des recommandations. Toute décision reste prise manuellement par un technicien.</p>
 
                         {% if ai_analyses is empty %}
-                            <p class="technician-ticket-detail__empty">Aucune analyse IA disponible pour ce ticket.</p>
+                            {% include '_empty_state.html.twig' with {
+                                message: 'Aucune analyse IA disponible pour ce ticket.'
+                            } only %}
                         {% else %}
                             <div class="technician-ticket-detail__list">
                                 {% for analysis in ai_analyses %}
@@ -328,7 +330,9 @@
                         <h2 id="similar-title">Tickets similaires</h2>
 
                         {% if similar_tickets is empty %}
-                            <p class="technician-ticket-detail__empty">Aucun ticket similaire trouvé.</p>
+                            {% include '_empty_state.html.twig' with {
+                                message: 'Aucun ticket similaire trouvé.'
+                            } only %}
                         {% else %}
                             <ul class="technician-ticket-detail__list">
                                 {% for similar_ticket in similar_tickets %}
@@ -352,7 +356,9 @@
                         <h2 id="interventions-title">Interventions</h2>
 
                         {% if interventions is empty %}
-                            <p class="technician-ticket-detail__empty">Aucune intervention pour ce ticket.</p>
+                            {% include '_empty_state.html.twig' with {
+                                message: 'Aucune intervention pour ce ticket.'
+                            } only %}
                         {% else %}
                             <ol class="technician-ticket-detail__timeline">
                                 {% for intervention in interventions %}
@@ -381,7 +387,9 @@
                         <h2 id="history-title">Historique</h2>
 
                         {% if ticket_history is empty %}
-                            <p class="technician-ticket-detail__empty">Aucun historique pour ce ticket.</p>
+                            {% include '_empty_state.html.twig' with {
+                                message: 'Aucun historique pour ce ticket.'
+                            } only %}
                         {% else %}
                             <ol class="technician-ticket-detail__timeline">
                                 {% for history in ticket_history %}
@@ -479,12 +487,16 @@
                                     <button class="technician-ticket-detail__button" type="submit">Modifier la catégorie</button>
                                 </form>
                             {% else %}
-                                <p class="technician-ticket-detail__empty">Aucune catégorie n'est disponible.</p>
+                                {% include '_empty_state.html.twig' with {
+                                message: "Aucune catégorie n'est disponible."
+                            } only %}
                             {% endif %}
                         {% endif %}
 
                         {% if ticket.assignedTo and not can_update_status and not can_update_priority and not can_update_category and not can_add_intervention %}
-                            <p class="technician-ticket-detail__empty">Aucune action disponible pour ce ticket.</p>
+                            {% include '_empty_state.html.twig' with {
+                                message: 'Aucune action disponible pour ce ticket.'
+                            } only %}
                         {% endif %}
                     </section>
                 </aside>

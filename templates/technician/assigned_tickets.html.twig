@@ -159,7 +159,9 @@
             </header>
 
             {% if tickets is empty %}
-                <div class="technician-assigned-tickets__empty">Aucun ticket ne vous est assigné pour le moment.</div>
+                {% include '_empty_state.html.twig' with {
+                    message: 'Aucun ticket actif ne vous est assigné pour le moment.'
+                } only %}
             {% else %}
                 <div class="technician-assigned-tickets__grid">
                     {% for ticket in tickets %}

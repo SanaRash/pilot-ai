@@ -102,7 +102,9 @@
                 <h2 id="admin-categories-title">Liste des catégories</h2>
 
                 {% if categories is empty %}
-                    <p class="admin-categories__empty">Aucune catégorie disponible.</p>
+                    {% include '_empty_state.html.twig' with {
+                        message: 'Aucune catégorie disponible.'
+                    } only %}
                 {% else %}
                     <div class="admin-categories__table-wrapper">
                         <table class="admin-categories__table">
