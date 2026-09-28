@@ -1,0 +1,37 @@
+{% set current_route = app.request.attributes.get('_route') %}
+
+<nav class="role-navigation" aria-label="Navigation principale">
+    <div class="role-navigation__inner">
+        <div class="role-navigation__groups">
+            {% if is_granted('ROLE_CLIENT') %}
+                <div class="role-navigation__group" aria-label="Espace client">
+                    <span class="role-navigation__label">Espace client</span>
+                    <a class="role-navigation__link" href="{{ path('app_client') }}"{% if current_route == 'app_client' %} aria-current="page"{% endif %}>Dashboard</a>
+                    <a class="role-navigation__link" href="{{ path('app_client_tickets') }}"{% if current_route == 'app_client_tickets' %} aria-current="page"{% endif %}>Mes tickets</a>
+                    <a class="role-navigation__link" href="{{ path('app_client_ticket_new') }}"{% if current_route == 'app_client_ticket_new' %} aria-current="page"{% endif %}>Nouvelle demande</a>
+                </div>
+            {% endif %}
+
+            {% if is_granted('ROLE_TECHNICIAN') %}
+                <div class="role-navigation__group" aria-label="Espace technicien">
+                    <span class="role-navigation__label">Espace technicien</span>
+                    <a class="role-navigation__link" href="{{ path('app_technician') }}"{% if current_route == 'app_technician' %} aria-current="page"{% endif %}>Dashboard</a>
+                    <a class="role-navigation__link" href="{{ path('app_technician_tickets') }}"{% if current_route == 'app_technician_tickets' %} aria-current="page"{% endif %}>Tickets ouverts</a>
+                    <a class="role-navigation__link" href="{{ path('app_technician_assigned_tickets') }}"{% if current_route == 'app_technician_assigned_tickets' %} aria-current="page"{% endif %}>Mes tickets assignés</a>
+                </div>
+            {% endif %}
+
+            {% if is_granted('ROLE_ADMIN') %}
+                <div class="role-navigation__group" aria-label="Espace admin">
+                    <span class="role-navigation__label">Espace admin</span>
+                    <a class="role-navigation__link" href="{{ path('app_admin') }}"{% if current_route == 'app_admin' %} aria-current="page"{% endif %}>Dashboard</a>
+                    <a class="role-navigation__link" href="{{ path('app_admin_users') }}"{% if current_route == 'app_admin_users' %} aria-current="page"{% endif %}>Utilisateurs</a>
+                    <a class="role-navigation__link" href="{{ path('app_admin_categories') }}"{% if current_route == 'app_admin_categories' %} aria-current="page"{% endif %}>Catégories</a>
+                    <a class="role-navigation__link" href="{{ path('app_admin_statistics') }}"{% if current_route == 'app_admin_statistics' %} aria-current="page"{% endif %}>Statistiques</a>
+                </div>
+            {% endif %}
+        </div>
+
+        <a class="role-navigation__link role-navigation__logout" href="{{ path('app_logout') }}">Déconnexion</a>
+    </div>
+</nav>

@@ -19,7 +19,7 @@
 - [x] statistiques MVP
 
 ## UI
-- [ ] navigation selon rôle
+- [x] navigation selon rôle
 - [ ] flash messages
 - [ ] états vides
 - [ ] responsive de base
