@@ -23,4 +23,4 @@
 - [x] flash messages
 - [x] états vides
 - [x] responsive de base
-- [ ] cohérence visuelle login/register/tickets
+- [x] cohérence visuelle login/register/tickets

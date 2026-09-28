@@ -3,35 +3,50 @@
 {% block title %}Inscription | Pilot AI{% endblock %}
 
 {% block body %}
+    <main class="auth-page">
+        <section class="auth-card" aria-labelledby="register-title">
+            <header class="auth-header">
+                <h1 id="register-title" class="auth-title">Créer un compte</h1>
+                <p class="auth-subtitle">Créez votre accès client pour suivre vos demandes de support.</p>
+            </header>
 
-    <h1>Créer un compte</h1>
+            {{ form_start(registrationForm, {attr: {class: 'auth-form'}}) }}
+                {{ form_errors(registrationForm) }}
 
-    {{ form_errors(registrationForm) }}
+                <div class="auth-field">
+                    {{ form_label(registrationForm.firstname, 'Prénom') }}
+                    {{ form_widget(registrationForm.firstname) }}
+                    {{ form_errors(registrationForm.firstname) }}
+                </div>
 
-    {{ form_start(registrationForm) }}
+                <div class="auth-field">
+                    {{ form_label(registrationForm.lastname, 'Nom') }}
+                    {{ form_widget(registrationForm.lastname) }}
+                    {{ form_errors(registrationForm.lastname) }}
+                </div>
 
-        {{ form_row(registrationForm.firstname, {
-            label: 'Prénom'
-        }) }}
+                <div class="auth-field">
+                    {{ form_label(registrationForm.email, 'Email') }}
+                    {{ form_widget(registrationForm.email) }}
+                    {{ form_errors(registrationForm.email) }}
+                </div>
 
-        {{ form_row(registrationForm.lastname, {
-            label: 'Nom'
-        }) }}
+                <div class="auth-field">
+                    {{ form_label(registrationForm.plainPassword, 'Mot de passe') }}
+                    {{ form_widget(registrationForm.plainPassword) }}
+                    {{ form_errors(registrationForm.plainPassword) }}
+                </div>
 
-        {{ form_row(registrationForm.email, {
-            label: 'Email'
-        }) }}
+                <div class="auth-field auth-field--checkbox">
+                    {{ form_widget(registrationForm.agreeTerms) }}
+                    {{ form_label(registrationForm.agreeTerms, "J'accepte les conditions d'utilisation") }}
+                </div>
+                {{ form_errors(registrationForm.agreeTerms) }}
 
-        {{ form_row(registrationForm.plainPassword, {
-            label: 'Mot de passe'
-        }) }}
-
-        {{ form_row(registrationForm.agreeTerms, {
-            label: "J'accepte les conditions d'utilisation"
-        }) }}
-
-        <button type="submit">Créer mon compte</button>
-
-    {{ form_end(registrationForm) }}
-
+                <div class="auth-actions">
+                    <button class="auth-button" type="submit">Créer mon compte</button>
+                </div>
+            {{ form_end(registrationForm) }}
+        </section>
+    </main>
 {% endblock %}
