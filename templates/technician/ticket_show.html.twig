@@ -44,6 +44,24 @@
             color: #0f172a;
         }
 
+        .technician-ticket-detail__back {
+            display: inline-flex;
+            gap: 0.45rem;
+            align-items: center;
+            width: fit-content;
+            margin-bottom: 1rem;
+            color: #5b5bd6;
+            font-size: 0.82rem;
+            font-weight: 750;
+            text-decoration: none;
+        }
+
+        .technician-ticket-detail__back:hover,
+        .technician-ticket-detail__back:focus-visible {
+            color: #4747b8;
+            text-decoration: underline;
+        }
+
         .technician-ticket-detail__header {
             display: grid;
             gap: 0.75rem;
@@ -182,9 +200,27 @@
             min-width: 0;
             overflow-wrap: anywhere;
             padding: 1rem;
-            border: 1px solid #e2e8f0;
-            border-radius: 0.75rem;
+            border: 1px solid #e6eaf0;
+            border-radius: 0.85rem;
             background: #f8fafc;
+            transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+        }
+
+        .technician-ticket-detail__item:hover {
+            border-color: #d5d8f4;
+            box-shadow: 0 8px 20px rgba(23, 32, 51, 0.05);
+            transform: translateY(-1px);
+        }
+
+        .technician-ticket-detail__item a {
+            color: #4f46c8;
+            font-weight: 800;
+            text-decoration: none;
+        }
+
+        .technician-ticket-detail__item a:hover,
+        .technician-ticket-detail__item a:focus-visible {
+            text-decoration: underline;
         }
 
         .technician-ticket-detail__item p {
@@ -266,6 +302,13 @@
             color: #596579;
             font-size: 0.82rem;
             line-height: 1.5;
+        }
+
+        .technician-ticket-detail__ai-card .empty-state {
+            border-style: dashed;
+            border-color: #d8daf5;
+            background: rgba(247, 247, 255, 0.8);
+            color: #636b7d;
         }
 
         .technician-ticket-detail__analysis {
@@ -381,6 +424,31 @@
             margin-top: 0.45rem;
         }
 
+        .technician-ticket-detail__card > h3 {
+            margin-top: 1.4rem;
+            padding-top: 1.2rem;
+            border-top: 1px solid #edf0f4;
+            font-size: 1rem;
+        }
+
+        .technician-ticket-detail__timeline .technician-ticket-detail__item {
+            position: relative;
+            padding-left: 1.2rem;
+        }
+
+        .technician-ticket-detail__timeline .technician-ticket-detail__item::before {
+            position: absolute;
+            top: 1.1rem;
+            left: -0.38rem;
+            width: 0.7rem;
+            height: 0.7rem;
+            border: 2px solid #fff;
+            border-radius: 999px;
+            background: #5b5bd6;
+            box-shadow: 0 0 0 1px #d9ddf2;
+            content: "";
+        }
+
         .technician-ticket-detail__actions-card {
             position: sticky;
             top: 6.25rem;
@@ -443,6 +511,8 @@
 
     <main class="technician-ticket-detail">
         <div class="technician-ticket-detail__content">
+            <a class="technician-ticket-detail__back" href="{{ path('app_technician_tickets') }}">← Retour aux tickets ouverts</a>
+
             <header class="technician-ticket-detail__header">
                 <div class="technician-ticket-detail__reference">#{{ ticket.id }}</div>
                 <h1>{{ ticket.title }}</h1>
@@ -455,7 +525,7 @@
             <div class="technician-ticket-detail__grid">
                 <div class="technician-ticket-detail__stack">
                     <section class="technician-ticket-detail__card" aria-labelledby="ticket-info-title">
-                        <h2 id="ticket-info-title">Ticket / informations</h2>
+                        <h2 id="ticket-info-title">Informations du ticket</h2>
                         <p class="technician-ticket-detail__description">{{ ticket.description }}</p>
 
                         <dl class="technician-ticket-detail__meta">
