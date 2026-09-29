@@ -201,14 +201,236 @@
             color: #64748b;
         }
 
+        .technician-ticket-detail__ai-card {
+            position: relative;
+            overflow: hidden;
+            border-color: #dcdcff;
+            background:
+                radial-gradient(circle at 100% 0, rgba(32, 184, 166, 0.12), transparent 28%),
+                linear-gradient(180deg, #ffffff 0%, #fbfbff 100%);
+        }
+
+        .technician-ticket-detail__ai-card::before {
+            position: absolute;
+            inset: 0 0 auto;
+            height: 4px;
+            background: linear-gradient(90deg, #5b5bd6, #20b8a6);
+            content: "";
+        }
+
+        .technician-ticket-detail__ai-heading {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .technician-ticket-detail__ai-title {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .technician-ticket-detail__ai-icon {
+            display: grid;
+            width: 2.75rem;
+            height: 2.75rem;
+            flex: none;
+            place-items: center;
+            border-radius: 0.85rem;
+            background: linear-gradient(135deg, #5b5bd6, #20b8a6);
+            color: #fff;
+            box-shadow: 0 10px 24px rgba(91, 91, 214, 0.22);
+            font-size: 0.82rem;
+            font-weight: 900;
+            letter-spacing: 0.03em;
+        }
+
+        .technician-ticket-detail__ai-title h2 {
+            margin: 0;
+        }
+
+        .technician-ticket-detail__ai-kicker {
+            margin: 0.2rem 0 0;
+            color: #64748b;
+            font-size: 0.78rem;
+        }
+
+        .technician-ticket-detail__ai-notice {
+            margin: 0 0 1.25rem;
+            padding: 0.8rem 1rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            background: rgba(255, 255, 255, 0.72);
+            color: #596579;
+            font-size: 0.82rem;
+            line-height: 1.5;
+        }
+
+        .technician-ticket-detail__analysis {
+            position: relative;
+            overflow: hidden;
+            padding: 1.25rem;
+            border: 1px solid #e1e4f2;
+            border-radius: 1rem;
+            background: #fff;
+            box-shadow: 0 8px 22px rgba(23, 32, 51, 0.04);
+        }
+
+        .technician-ticket-detail__analysis + .technician-ticket-detail__analysis {
+            margin-top: 1rem;
+        }
+
+        .technician-ticket-detail__analysis-header {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .technician-ticket-detail__analysis-header h3 {
+            margin: 0;
+            font-size: 1rem;
+        }
+
+        .technician-ticket-detail__analysis-date {
+            color: #7b8494;
+            font-size: 0.75rem;
+            white-space: nowrap;
+        }
+
+        .technician-ticket-detail__ai-summary {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border-left: 3px solid #5b5bd6;
+            border-radius: 0.55rem;
+            background: #f7f7ff;
+        }
+
+        .technician-ticket-detail__ai-summary strong {
+            display: block;
+            margin-bottom: 0.35rem;
+            color: #33346f;
+            font-size: 0.75rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .technician-ticket-detail__ai-summary p {
+            margin: 0;
+            color: #293044;
+            line-height: 1.6;
+        }
+
+        .technician-ticket-detail__ai-suggestions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .technician-ticket-detail__ai-suggestion {
+            padding: 0.85rem;
+            border: 1px solid #e7e9f1;
+            border-radius: 0.75rem;
+            background: #fafbfc;
+        }
+
+        .technician-ticket-detail__ai-suggestion span {
+            display: block;
+            margin-bottom: 0.25rem;
+            color: #7b8494;
+            font-size: 0.7rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .technician-ticket-detail__ai-suggestion strong {
+            color: #20283a;
+            font-size: 0.9rem;
+        }
+
+        .technician-ticket-detail__keywords {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            margin: 0 0 1rem;
+            padding: 0;
+            list-style: none;
+        }
+
+        .technician-ticket-detail__keyword {
+            padding: 0.35rem 0.6rem;
+            border-radius: 999px;
+            background: #eef8f6;
+            color: #137d70;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .technician-ticket-detail__recommendations {
+            margin: 0;
+            padding-left: 1.15rem;
+            color: #40495a;
+        }
+
+        .technician-ticket-detail__recommendations li + li {
+            margin-top: 0.45rem;
+        }
+
+        .technician-ticket-detail__actions-card {
+            position: sticky;
+            top: 6.25rem;
+        }
+
+        .technician-ticket-detail__actions-intro {
+            margin: -0.35rem 0 1rem;
+            color: #64748b;
+            font-size: 0.8rem;
+            line-height: 1.45;
+        }
+
+        .technician-ticket-detail__form + .technician-ticket-detail__form {
+            padding-top: 1rem;
+            border-top: 1px solid #edf0f4;
+        }
+
+        .technician-ticket-detail__form select,
+        .technician-ticket-detail__form textarea,
+        .technician-ticket-detail__form input {
+            min-height: 2.8rem;
+            border-color: #d9dee8;
+            background: #fbfcfe;
+        }
+
+        .technician-ticket-detail__form select:focus-visible,
+        .technician-ticket-detail__form textarea:focus-visible,
+        .technician-ticket-detail__form input:focus-visible {
+            border-color: #5b5bd6;
+            outline: 3px solid #eeeeff;
+        }
+
         @media (max-width: 60rem) {
             .technician-ticket-detail {
                 padding: 1.5rem;
             }
 
             .technician-ticket-detail__grid,
-            .technician-ticket-detail__meta {
+            .technician-ticket-detail__meta,
+            .technician-ticket-detail__ai-suggestions {
                 grid-template-columns: 1fr;
+            }
+
+            .technician-ticket-detail__actions-card {
+                position: static;
+            }
+
+            .technician-ticket-detail__analysis-header {
+                align-items: flex-start;
+                flex-direction: column;
             }
 
             .technician-ticket-detail__nav a,
@@ -270,64 +492,79 @@
                         </dl>
                     </section>
 
-                    <section class="technician-ticket-detail__card" aria-labelledby="ai-title">
-                        <h2 id="ai-title">Analyses IA</h2>
-                        <p>Ces éléments sont des recommandations. Toute décision reste prise manuellement par un technicien.</p>
+                    <section class="technician-ticket-detail__card technician-ticket-detail__ai-card" aria-labelledby="ai-title">
+                        <div class="technician-ticket-detail__ai-heading">
+                            <div class="technician-ticket-detail__ai-title">
+                                <span class="technician-ticket-detail__ai-icon">AI</span>
+                                <div>
+                                    <h2 id="ai-title">Analyse Pilot AI</h2>
+                                    <p class="technician-ticket-detail__ai-kicker">Aide à la qualification et à la résolution du ticket</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p class="technician-ticket-detail__ai-notice">
+                            Les résultats ci-dessous sont des recommandations générées par l’IA. Le technicien garde la décision finale sur la priorité, la catégorie et les actions à mener.
+                        </p>
 
                         {% if ai_analyses is empty %}
                             {% include '_empty_state.html.twig' with {
                                 message: 'Aucune analyse IA disponible pour ce ticket.'
                             } only %}
                         {% else %}
-                            <div class="technician-ticket-detail__list">
-                                {% for analysis in ai_analyses %}
-                                    <article class="technician-ticket-detail__item">
-                                        <h3>Analyse du {{ analysis.createdAt|date('d/m/Y H:i') }}</h3>
-                                        <dl class="technician-ticket-detail__meta">
-                                            <div>
-                                                <dt>Résumé</dt>
-                                                <dd>{{ analysis.summary ?? '—' }}</dd>
-                                            </div>
-                                            <div>
-                                                <dt>Priorité proposée</dt>
-                                                <dd>
-                                                    {% if analysis.suggestedPriority %}
-                                                        {{ priority_labels[analysis.suggestedPriority] ?? analysis.suggestedPriority }}
-                                                    {% else %}
-                                                        —
-                                                    {% endif %}
-                                                </dd>
-                                            </div>
-                                            <div>
-                                                <dt>Catégorie proposée</dt>
-                                                <dd>{{ analysis.suggestedCategory ?? '—' }}</dd>
-                                            </div>
-                                        </dl>
+                            {% for analysis in ai_analyses %}
+                                <article class="technician-ticket-detail__analysis">
+                                    <div class="technician-ticket-detail__analysis-header">
+                                        <h3>Diagnostic proposé</h3>
+                                        <span class="technician-ticket-detail__analysis-date">{{ analysis.createdAt|date('d/m/Y H:i') }}</span>
+                                    </div>
 
-                                        <h4>Mots-clés</h4>
-                                        {% if analysis.keywords is empty %}
-                                            <p>—</p>
-                                        {% else %}
-                                            <ul>
-                                                {% for keyword in analysis.keywords %}
-                                                    <li>{{ keyword }}</li>
-                                                {% endfor %}
-                                            </ul>
-                                        {% endif %}
+                                    <div class="technician-ticket-detail__ai-summary">
+                                        <strong>Résumé automatique</strong>
+                                        <p>{{ analysis.summary ?? 'Aucun résumé disponible.' }}</p>
+                                    </div>
 
-                                        <h4>Suggestions</h4>
-                                        {% if analysis.suggestions is empty %}
-                                            <p>—</p>
-                                        {% else %}
-                                            <ul>
-                                                {% for suggestion in analysis.suggestions %}
-                                                    <li>{{ suggestion }}</li>
-                                                {% endfor %}
-                                            </ul>
-                                        {% endif %}
-                                    </article>
-                                {% endfor %}
-                            </div>
+                                    <div class="technician-ticket-detail__ai-suggestions">
+                                        <div class="technician-ticket-detail__ai-suggestion">
+                                            <span>Priorité suggérée</span>
+                                            <strong>
+                                                {% if analysis.suggestedPriority %}
+                                                    {{ priority_labels[analysis.suggestedPriority] ?? analysis.suggestedPriority }}
+                                                {% else %}
+                                                    Non déterminée
+                                                {% endif %}
+                                            </strong>
+                                        </div>
+
+                                        <div class="technician-ticket-detail__ai-suggestion">
+                                            <span>Catégorie suggérée</span>
+                                            <strong>{{ analysis.suggestedCategory ?? 'Non déterminée' }}</strong>
+                                        </div>
+                                    </div>
+
+                                    <h4>Mots-clés détectés</h4>
+                                    {% if analysis.keywords is empty %}
+                                        <p>—</p>
+                                    {% else %}
+                                        <ul class="technician-ticket-detail__keywords">
+                                            {% for keyword in analysis.keywords %}
+                                                <li class="technician-ticket-detail__keyword">{{ keyword }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+
+                                    <h4>Suggestions de résolution</h4>
+                                    {% if analysis.suggestions is empty %}
+                                        <p>—</p>
+                                    {% else %}
+                                        <ul class="technician-ticket-detail__recommendations">
+                                            {% for suggestion in analysis.suggestions %}
+                                                <li>{{ suggestion }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </article>
+                            {% endfor %}
                         {% endif %}
                     </section>
 
@@ -437,8 +674,9 @@
                 </div>
 
                 <aside class="technician-ticket-detail__stack" aria-label="Actions du ticket">
-                    <section class="technician-ticket-detail__card">
-                        <h2>Actions</h2>
+                    <section class="technician-ticket-detail__card technician-ticket-detail__actions-card">
+                        <h2>Actions du ticket</h2>
+                        <p class="technician-ticket-detail__actions-intro">Mettez à jour uniquement les éléments nécessaires au traitement de cette demande.</p>
 
                         {% if not ticket.assignedTo %}
                             <form class="technician-ticket-detail__form" method="post" action="{{ path('app_technician_ticket_assign', {id: ticket.id}) }}">
