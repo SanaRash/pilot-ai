@@ -511,6 +511,12 @@
 
     <main class="technician-ticket-detail">
         <div class="technician-ticket-detail__content">
+            <nav class="technician-ticket-detail__nav" aria-label="Navigation technicien locale">
+                <a href="{{ path('app_technician') }}">Dashboard technicien</a>
+                <a href="{{ path('app_technician_tickets') }}">Tickets ouverts</a>
+                <a href="{{ path('app_technician_assigned_tickets') }}">Mes tickets assignés</a>
+            </nav>
+
             <a class="technician-ticket-detail__back" href="{{ path('app_technician_tickets') }}">← Retour aux tickets ouverts</a>
 
             <header class="technician-ticket-detail__header">
