@@ -48,7 +48,17 @@
         }
 
         .admin-dashboard__metric {
-            padding: 1.25rem;
+            position: relative;
+            overflow: hidden;
+            padding: 1.35rem;
+        }
+
+        .admin-dashboard__metric::before {
+            position: absolute;
+            inset: 0 0 auto;
+            height: 3px;
+            background: linear-gradient(90deg, #5b5bd6, #20b8a6);
+            content: "";
         }
 
         .admin-dashboard__metric-label {
