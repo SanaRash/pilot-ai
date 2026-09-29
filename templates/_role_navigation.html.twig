@@ -2,6 +2,11 @@
 
 <nav class="role-navigation" aria-label="Navigation principale">
     <div class="role-navigation__inner">
+        <a class="role-navigation__brand" href="{% if is_granted('ROLE_ADMIN') %}{{ path('app_admin') }}{% elseif is_granted('ROLE_TECHNICIAN') %}{{ path('app_technician') }}{% else %}{{ path('app_client') }}{% endif %}">
+            <span class="role-navigation__brand-mark">AI</span>
+            <span>Pilot AI</span>
+        </a>
+
         <div class="role-navigation__groups">
             {% if is_granted('ROLE_CLIENT') %}
                 <div class="role-navigation__group" aria-label="Espace client">
@@ -32,6 +37,9 @@
             {% endif %}
         </div>
 
-        <a class="role-navigation__link role-navigation__logout" href="{{ path('app_logout') }}">Déconnexion</a>
+        <div class="role-navigation__account">
+            <span class="role-navigation__user">{{ app.user.userIdentifier }}</span>
+            <a class="role-navigation__link role-navigation__logout" href="{{ path('app_logout') }}">Déconnexion</a>
+        </div>
     </div>
 </nav>
