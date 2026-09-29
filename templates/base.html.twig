@@ -16,8 +16,24 @@
                 min-width: 0;
             }
 
+            :root {
+                --pilot-ink: #172033;
+                --pilot-muted: #6b7280;
+                --pilot-bg: #f4f7fb;
+                --pilot-surface: #ffffff;
+                --pilot-border: #e6eaf0;
+                --pilot-primary: #5b5bd6;
+                --pilot-primary-dark: #4747b8;
+                --pilot-primary-soft: #eeeeff;
+                --pilot-accent: #20b8a6;
+                --pilot-shadow: 0 16px 40px rgba(23, 32, 51, 0.08);
+            }
+
             body {
                 margin: 0;
+                background: var(--pilot-bg);
+                color: var(--pilot-ink);
+                font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             }
 
             img,
@@ -61,73 +77,123 @@
             }
 
             .role-navigation {
-                border-bottom: 1px solid #e2e8f0;
-                background: #fff;
-                color: #0f172a;
-                font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                position: sticky;
+                top: 0;
+                z-index: 50;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                background: rgba(23, 32, 51, 0.96);
+                color: #fff;
+                backdrop-filter: blur(14px);
+                box-shadow: 0 8px 28px rgba(23, 32, 51, 0.12);
             }
 
             .role-navigation__inner {
                 display: flex;
-                flex-wrap: wrap;
-                gap: 1rem;
+                gap: 1.25rem;
                 align-items: center;
                 justify-content: space-between;
-                width: min(100%, 76rem);
+                width: min(100%, 80rem);
                 margin: 0 auto;
-                padding: 0.85rem 1.5rem;
+                padding: 0.8rem 1.5rem;
+            }
+
+            .role-navigation__brand {
+                display: inline-flex;
+                flex: none;
+                gap: 0.7rem;
+                align-items: center;
+                color: #fff;
+                font-size: 1rem;
+                font-weight: 850;
+                letter-spacing: -0.02em;
+                text-decoration: none;
+            }
+
+            .role-navigation__brand-mark {
+                display: grid;
+                width: 2.2rem;
+                height: 2.2rem;
+                place-items: center;
+                border-radius: 0.7rem;
+                background: linear-gradient(135deg, #7777f0, #20b8a6);
+                box-shadow: 0 8px 20px rgba(91, 91, 214, 0.35);
+                font-size: 0.78rem;
+                font-weight: 900;
             }
 
             .role-navigation__groups {
                 display: flex;
+                flex: 1;
                 flex-wrap: wrap;
-                gap: 0.75rem;
+                gap: 0.65rem;
                 align-items: center;
+                justify-content: center;
             }
 
             .role-navigation__group {
                 display: flex;
                 flex-wrap: wrap;
-                gap: 0.4rem;
+                gap: 0.25rem;
                 align-items: center;
             }
 
             .role-navigation__label {
-                color: #64748b;
-                font-size: 0.75rem;
+                margin-right: 0.35rem;
+                color: #9ca7bb;
+                font-size: 0.68rem;
                 font-weight: 800;
+                letter-spacing: 0.08em;
                 text-transform: uppercase;
             }
 
             .role-navigation__link {
                 display: inline-flex;
                 align-items: center;
-                min-height: 2.5rem;
-                padding: 0.45rem 0.65rem;
-                border-radius: 0.5rem;
-                color: #334155;
-                font-size: 0.875rem;
+                min-height: 2.35rem;
+                padding: 0.45rem 0.75rem;
+                border-radius: 0.65rem;
+                color: #d9deea;
+                font-size: 0.84rem;
                 font-weight: 700;
-                overflow-wrap: anywhere;
                 text-decoration: none;
+                transition: background 160ms ease, color 160ms ease, transform 160ms ease;
             }
 
             .role-navigation__link:hover,
             .role-navigation__link:focus-visible {
-                background: #eff6ff;
-                color: #2563eb;
-                outline: 2px solid transparent;
-                text-decoration: underline;
+                background: rgba(255, 255, 255, 0.09);
+                color: #fff;
+                outline: none;
+                text-decoration: none;
+                transform: translateY(-1px);
             }
 
             .role-navigation__link[aria-current="page"] {
-                background: #2563eb;
+                background: rgba(119, 119, 240, 0.2);
                 color: #fff;
+                box-shadow: inset 0 0 0 1px rgba(152, 152, 255, 0.28);
+            }
+
+            .role-navigation__account {
+                display: flex;
+                flex: none;
+                gap: 0.55rem;
+                align-items: center;
+            }
+
+            .role-navigation__user {
+                max-width: 13rem;
+                overflow: hidden;
+                color: #c9d0df;
+                font-size: 0.78rem;
+                text-overflow: ellipsis;
+                white-space: nowrap;
             }
 
             .role-navigation__logout {
-                border: 1px solid #e2e8f0;
-                background: #f8fafc;
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                background: rgba(255, 255, 255, 0.06);
+                color: #fff;
             }
 
             .flash-messages {
@@ -203,7 +269,7 @@
 
             .empty-state__action:hover,
             .empty-state__action:focus-visible {
-                background: #1d4ed8;
+                background: var(--pilot-primary-dark);
                 outline: 2px solid transparent;
                 text-decoration: underline;
             }
@@ -213,18 +279,18 @@
                 display: grid;
                 place-items: center;
                 padding: 3.5rem 1.5rem;
-                background: #f8fafc;
-                color: #0f172a;
+                background: radial-gradient(circle at top left, #eeeeff 0, transparent 34%), radial-gradient(circle at bottom right, #dcfaf5 0, transparent 30%), #f6f8fc;
+                color: var(--pilot-ink);
                 font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             }
 
             .auth-card {
-                width: min(100%, 28rem);
-                padding: 1.75rem;
-                border: 1px solid #e2e8f0;
-                border-radius: 1rem;
-                background: #fff;
-                box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+                width: min(100%, 29rem);
+                padding: 2rem;
+                border: 1px solid rgba(230, 234, 240, 0.9);
+                border-radius: 1.35rem;
+                background: rgba(255, 255, 255, 0.94);
+                box-shadow: var(--pilot-shadow);
             }
 
             .auth-header {
@@ -233,8 +299,8 @@
 
             .auth-title {
                 margin: 0;
-                color: #0f172a;
-                font-size: 1.75rem;
+                color: var(--pilot-ink);
+                font-size: 2rem;
                 line-height: 1.2;
             }
 
@@ -272,8 +338,8 @@
             }
 
             .auth-field input:focus-visible {
-                border-color: #2563eb;
-                outline: 3px solid #dbeafe;
+                border-color: var(--pilot-primary);
+                outline: 3px solid var(--pilot-primary-soft);
             }
 
             .auth-field--checkbox {
@@ -299,9 +365,9 @@
                 align-items: center;
                 justify-content: center;
                 padding: 0.75rem 1rem;
-                border: 1px solid #2563eb;
-                border-radius: 0.625rem;
-                background: #2563eb;
+                border: 1px solid var(--pilot-primary);
+                border-radius: 0.75rem;
+                background: linear-gradient(135deg, var(--pilot-primary), #6f6fe5);
                 color: #fff;
                 font-size: 0.9375rem;
                 font-weight: 700;
@@ -311,13 +377,13 @@
 
             .auth-button:hover,
             .auth-button:focus-visible {
-                background: #1d4ed8;
+                background: var(--pilot-primary-dark);
                 outline: 2px solid transparent;
                 text-decoration: underline;
             }
 
             .auth-link {
-                color: #2563eb;
+                color: var(--pilot-primary);
                 font-weight: 700;
             }
 
@@ -356,15 +422,27 @@
                     padding: 0.85rem 1rem;
                 }
 
-                .role-navigation__groups,
+                .role-navigation__inner {
+                    flex-wrap: wrap;
+                }
+
+                .role-navigation__groups {
+                    order: 3;
+                    width: 100%;
+                    justify-content: flex-start;
+                }
+
                 .role-navigation__group {
-                    align-items: flex-start;
-                    flex-direction: column;
                     width: 100%;
                 }
 
-                .role-navigation__link {
+                .role-navigation__label {
                     width: 100%;
+                    margin: 0.2rem 0;
+                }
+
+                .role-navigation__user {
+                    display: none;
                 }
 
                 .flash-messages {
