@@ -15,6 +15,17 @@ Le trigger maintient une connexion IMAP persistante. Il ne repose pas sur un pol
 Le workflow n'appelle aucune API Pilot AI, traite uniquement l'expéditeur, le sujet et le
 contenu texte, et ne produit aucun effet métier.
 
+## État d’intégration avec Pilot AI
+
+- La réception IMAP et l’extraction de `sender`, `subject` et `content` sont
+  implémentées et validées.
+- L’API Pilot AI `POST /api/tickets/email` est disponible séparément et a été
+  implémentée et validée.
+- Le nœud HTTP reliant ce workflow n8n à l’API n’est pas implémenté actuellement.
+
+Le workflow et l’API fonctionnent donc séparément : la réception d’un e-mail dans
+n8n ne crée pas actuellement de ticket Pilot AI.
+
 ### Extraction de l'expéditeur
 
 Le format `simple` du trigger expose l'en-tête `From` dans `$json.from`. Le workflow utilise
