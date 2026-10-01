@@ -14,15 +14,23 @@
 - [x] [Phase 03 — Flux Tickets MVP](phase-03-tickets.md)
 - [x] [Phase 04 — Interventions](phase-04-interventions.md)
 - [x] [Phase 05 — Historique](phase-05-historique.md)
-- [ ] [Phase 06 — Intelligence artificielle](phase-06-ia.md)
+- [x] [Phase 06 — Intelligence artificielle](phase-06-ia.md)
 - [ ] [Phase 07 — n8n et ingestion e-mail](phase-07-n8n.md)
-- [ ] [Phase 08 — Dashboards et UI](phase-08-dashboard-ui.md)
-- [ ] [Phase 09 — Tests, sécurité et livraison](phase-09-tests-livraison.md)
+- [x] [Phase 08 — Dashboards et UI](phase-08-dashboard-ui.md)
+- [x] [Phase 09 — Tests, sécurité et livraison](phase-09-tests-livraison.md)
 
-## Dernière tâche validée
+## État final du MVP
 
-`Phase 05 / Tâche 9 — Ne jamais supprimer automatiquement l'historique`
+Le MVP Pilot AI est fonctionnel et validé sur les parcours Client, Technicien, Admin,
+IA, sécurité, intégrité Doctrine et UI. La Phase 07 reste partielle : le workflow n8n
+reçoit et extrait les e-mails et l’API d’ingestion existe, mais le raccord HTTP n8n ->
+API reste à implémenter.
 
-## Prochaine tâche
+Les Phases 01 à 06 et 08 à 09 sont terminées. La Phase 07 ne doit pas être considérée
+comme un flux e-mail -> ticket automatique complet.
 
-`Phase 06 — Intelligence artificielle` — ne pas commencer sans nouvelle validation humaine.
+## État de la roadmap
+
+La mise en cohérence de la roadmap n’ajoute pas de fonctionnalité et ne marque pas le
+raccord n8n -> API comme réalisé. Les évolutions restantes de cette intégration sont
+à traiter séparément.

@@ -3,7 +3,7 @@
 ## Architecture
 
 - [x] `AIProviderInterface`
-- [x] provider interchangeable OpenRouter/Mistral/OpenAI selon choix final
+- [x] provider OpenRouter implémenté derrière `AIProviderInterface`
 - [x] `AIService`
 
 ## Analyse ticket
