@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: pilot_ai
       POSTGRES_USER: pilot_ai
-      POSTGRES_PASSWORD: pilot_ai_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local_only_not_a_secret}
 
     ports:
       - "5432:5432"
