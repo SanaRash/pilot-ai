@@ -248,9 +248,11 @@ try {
     ensureTechnicianTicketShow(str_contains($assignedHtml, 'Urgente'), 'URGENT priority must be translated.');
     ensureTechnicianTicketShow(str_contains($assignedHtml, '&lt;script&gt;alert(&quot;category&quot;)&lt;/script&gt;'), 'Category must be escaped.');
     ensureTechnicianTicketShow(str_contains($assignedHtml, '&lt;script&gt;alert(&quot;client&quot;)&lt;/script&gt; Client'), 'Client identity must be escaped.');
-    ensureTechnicianTicketShow(str_contains($assignedHtml, 'Dashboard technicien'), 'Dashboard link is missing.');
-    ensureTechnicianTicketShow(str_contains($assignedHtml, 'Tickets ouverts'), 'Open tickets link is missing.');
-    ensureTechnicianTicketShow(str_contains($assignedHtml, 'Mes tickets assignés'), 'Assigned tickets link is missing.');
+    ensureTechnicianTicketShow(str_contains($assignedHtml, 'class="role-navigation__link" href="/technician">Dashboard</a>'), 'Global technician dashboard link is missing.');
+    ensureTechnicianTicketShow(str_contains($assignedHtml, 'class="role-navigation__link" href="/technician/tickets"'), 'Global open tickets link is missing.');
+    ensureTechnicianTicketShow(str_contains($assignedHtml, 'class="role-navigation__link" href="/technician/tickets/assigned"'), 'Global assigned tickets link is missing.');
+    ensureTechnicianTicketShow(!str_contains($assignedHtml, 'Navigation technicien locale'), 'Local technician navigation must not be duplicated.');
+    ensureTechnicianTicketShow(str_contains($assignedHtml, '← Retour aux tickets ouverts'), 'Return link to open tickets is missing.');
     ensureTechnicianTicketShow(str_contains($assignedHtml, 'Résumé IA visible'), 'AI analysis must remain visible.');
     ensureTechnicianTicketShow(str_contains($assignedHtml, 'Suggestion passive'), 'AI suggestions must remain visible and passive.');
     ensureTechnicianTicketShow(str_contains($assignedHtml, 'Ticket similaire visible'), 'Similar tickets must remain visible.');
