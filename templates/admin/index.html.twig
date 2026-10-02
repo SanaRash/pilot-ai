@@ -118,6 +118,17 @@
             font-weight: 800;
         }
 
+        .admin-ticket-card__title a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .admin-ticket-card__title a:hover,
+        .admin-ticket-card__title a:focus-visible {
+            color: #2563eb;
+            text-decoration: underline;
+        }
+
         .admin-ticket-card__badges {
             display: flex;
             flex-wrap: wrap;
@@ -240,7 +251,9 @@
                                 <div class="admin-ticket-card__header">
                                     <div>
                                         <div class="admin-ticket-card__reference">#{{ ticket.id }}</div>
-                                        <p class="admin-ticket-card__title">{{ ticket.title }}</p>
+                                        <p class="admin-ticket-card__title">
+                                            <a href="{{ path('app_admin_ticket_show', {id: ticket.id}) }}">{{ ticket.title }}</a>
+                                        </p>
                                     </div>
                                     <div class="admin-ticket-card__badges">
                                         <span class="admin-ticket-card__badge">{{ status_labels[ticket.status] }}</span>

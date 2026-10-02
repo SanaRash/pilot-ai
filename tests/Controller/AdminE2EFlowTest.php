@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 use App\Entity\Category;
+use App\Entity\AIAnalysis;
+use App\Entity\Intervention;
 use App\Entity\Ticket;
+use App\Entity\TicketHistory;
 use App\Controller\AdminController;
 use App\Entity\User;
 use App\Kernel;
@@ -81,6 +84,7 @@ function adminE2EHandle(Kernel $kernel, string $path, string $method = 'GET', ?S
 
     if (null !== $session) {
         $request->setSession($session);
+        $request->cookies->set($session->getName(), $session->getId());
     }
 
     return $kernel->handle($request, HttpKernelInterface::MAIN_REQUEST);
@@ -288,10 +292,30 @@ try {
         ensureAdminE2E(str_contains($dashboardHtml, $title), sprintf('Recent ticket "%s" must be displayed on dashboard.', $title));
     }
     ensureAdminE2E(!str_contains($dashboardHtml, 'Admin E2E récent 6 hors dashboard'), 'Dashboard recent tickets must be limited to 5.');
+    ensureAdminE2E(
+        str_contains($dashboardHtml, sprintf('href="/admin/tickets/%d"', $tickets[0]->getId())),
+        'Recent dashboard tickets must link to their admin detail.',
+    );
     foreach (['Ouvert', 'En cours', 'Résolu', 'Fermé', 'Urgente', 'Haute', 'Moyenne', 'Basse', 'Non catégorisé', 'Client E2E', 'Tech Assigné', 'Non assigné'] as $label) {
         ensureAdminE2E(str_contains($dashboardHtml, $label), sprintf('Dashboard must display "%s".', $label));
     }
     adminE2EAssertReadOnlyHtml($dashboardHtml, 'Admin dashboard');
+
+    $ticketShowResponse = adminE2EHandle($kernel, '/admin/tickets/'.$tickets[0]->getId(), 'GET', $adminSession);
+    ensureAdminE2E(Response::HTTP_OK === $ticketShowResponse->getStatusCode(), 'GET admin ticket detail must return 200 for ROLE_ADMIN.');
+    $ticketShowHtml = (string) $ticketShowResponse->getContent();
+    ensureAdminE2E(str_contains($ticketShowHtml, 'Admin E2E récent 1 urgent assigné'), 'Admin ticket detail must display the selected ticket.');
+    ensureAdminE2E(str_contains($ticketShowHtml, 'Consultation en lecture seule'), 'Admin ticket detail must explicitly be read-only.');
+    adminE2EAssertReadOnlyHtml($ticketShowHtml, 'Admin ticket detail', [
+        'Modifier le statut',
+        'Modifier la priorité',
+        'Modifier la catégorie',
+        'M&#039;assigner ce ticket',
+        'Ajouter une intervention',
+        'Appliquer',
+        'Accepter',
+        'Générer',
+    ]);
 
     $usersResponse = adminE2ERender(
         $requestStack,

@@ -1,0 +1,297 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Ticket #{{ ticket.id }} | Admin | Pilot AI{% endblock %}
+
+{% block body %}
+    <style>
+        .admin-ticket-show {
+            min-height: 100vh;
+            padding: 3.5rem;
+            background: #f8fafc;
+            color: #0f172a;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .admin-ticket-show__content {
+            width: min(100%, 76rem);
+            margin: 0 auto;
+        }
+
+        .admin-ticket-show__back {
+            display: inline-flex;
+            margin-bottom: 1rem;
+            color: #2563eb;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .admin-ticket-show__back:hover,
+        .admin-ticket-show__back:focus-visible {
+            text-decoration: underline;
+        }
+
+        .admin-ticket-show__header {
+            margin-bottom: 1.5rem;
+        }
+
+        .admin-ticket-show__eyebrow {
+            margin: 0 0 0.4rem;
+            color: #2563eb;
+            font-size: 0.8125rem;
+            font-weight: 800;
+        }
+
+        .admin-ticket-show h1 {
+            margin: 0;
+            font-size: 2rem;
+            line-height: 1.2;
+            overflow-wrap: anywhere;
+        }
+
+        .admin-ticket-show__notice,
+        .admin-ticket-show__section {
+            margin-bottom: 1rem;
+            padding: 1.5rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.875rem;
+            background: #fff;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+
+        .admin-ticket-show__notice {
+            border-color: #bfdbfe;
+            background: #eff6ff;
+            color: #1e40af;
+            font-weight: 700;
+        }
+
+        .admin-ticket-show h2 {
+            margin: 0 0 1rem;
+            font-size: 1.25rem;
+        }
+
+        .admin-ticket-show__details {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1rem;
+            margin: 0;
+        }
+
+        .admin-ticket-show__details div {
+            min-width: 0;
+        }
+
+        .admin-ticket-show__details dt {
+            margin-bottom: 0.25rem;
+            color: #64748b;
+            font-size: 0.8125rem;
+            font-weight: 700;
+        }
+
+        .admin-ticket-show__details dd {
+            margin: 0;
+            overflow-wrap: anywhere;
+        }
+
+        .admin-ticket-show__description,
+        .admin-ticket-show__entry-content {
+            overflow-wrap: anywhere;
+            white-space: pre-wrap;
+        }
+
+        .admin-ticket-show__entries {
+            display: grid;
+            gap: 1rem;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .admin-ticket-show__entry {
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            background: #f8fafc;
+        }
+
+        .admin-ticket-show__entry-heading {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem 1rem;
+            justify-content: space-between;
+            margin: 0 0 0.65rem;
+            color: #475569;
+            font-size: 0.875rem;
+        }
+
+        .admin-ticket-show__entry-content {
+            margin: 0;
+        }
+
+        .admin-ticket-show__empty {
+            margin: 0;
+            color: #64748b;
+        }
+
+        @media (max-width: 56rem) {
+            .admin-ticket-show {
+                padding: 1.5rem;
+            }
+        }
+
+        @media (max-width: 40rem) {
+            .admin-ticket-show__details {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+
+    <main class="admin-ticket-show">
+        <div class="admin-ticket-show__content">
+            <a class="admin-ticket-show__back" href="{{ path('app_admin') }}">← Retour au dashboard Admin</a>
+
+            <header class="admin-ticket-show__header">
+                <p class="admin-ticket-show__eyebrow">Ticket #{{ ticket.id }}</p>
+                <h1>{{ ticket.title }}</h1>
+            </header>
+
+            <p class="admin-ticket-show__notice">Consultation en lecture seule</p>
+
+            <section class="admin-ticket-show__section" aria-labelledby="ticket-details-title">
+                <h2 id="ticket-details-title">Détails du ticket</h2>
+                <dl class="admin-ticket-show__details">
+                    <div>
+                        <dt>Description</dt>
+                        <dd class="admin-ticket-show__description">{{ ticket.description }}</dd>
+                    </div>
+                    <div>
+                        <dt>Client</dt>
+                        <dd>{{ ticket.createdBy.firstname }} {{ ticket.createdBy.lastname }} ({{ ticket.createdBy.email }})</dd>
+                    </div>
+                    <div>
+                        <dt>Statut</dt>
+                        <dd>{{ status_labels[ticket.status] }}</dd>
+                    </div>
+                    <div>
+                        <dt>Priorité</dt>
+                        <dd>{{ priority_labels[ticket.priority] }}</dd>
+                    </div>
+                    <div>
+                        <dt>Catégorie</dt>
+                        <dd>{{ ticket.category ? ticket.category.name : 'Non catégorisé' }}</dd>
+                    </div>
+                    <div>
+                        <dt>Source</dt>
+                        <dd>{{ ticket.source }}</dd>
+                    </div>
+                    <div>
+                        <dt>Créé le</dt>
+                        <dd>{{ ticket.createdAt|date('d/m/Y H:i') }}</dd>
+                    </div>
+                    <div>
+                        <dt>Mis à jour le</dt>
+                        <dd>{{ ticket.updatedAt ? ticket.updatedAt|date('d/m/Y H:i') : 'Non modifié' }}</dd>
+                    </div>
+                    <div>
+                        <dt>Technicien assigné</dt>
+                        <dd>
+                            {% if ticket.assignedTo %}
+                                {{ ticket.assignedTo.firstname }} {{ ticket.assignedTo.lastname }} ({{ ticket.assignedTo.email }})
+                            {% else %}
+                                Non assigné
+                            {% endif %}
+                        </dd>
+                    </div>
+                </dl>
+            </section>
+
+            <section class="admin-ticket-show__section" aria-labelledby="interventions-title">
+                <h2 id="interventions-title">Interventions</h2>
+                {% if interventions is empty %}
+                    <p class="admin-ticket-show__empty">Aucune intervention.</p>
+                {% else %}
+                    <ol class="admin-ticket-show__entries">
+                        {% for intervention in interventions %}
+                            <li class="admin-ticket-show__entry">
+                                <p class="admin-ticket-show__entry-heading">
+                                    <span>{{ intervention.technician.firstname }} {{ intervention.technician.lastname }}</span>
+                                    <time datetime="{{ intervention.createdAt|date('c') }}">{{ intervention.createdAt|date('d/m/Y H:i') }}</time>
+                                </p>
+                                <p class="admin-ticket-show__entry-content">{{ intervention.content }}</p>
+                            </li>
+                        {% endfor %}
+                    </ol>
+                {% endif %}
+            </section>
+
+            <section class="admin-ticket-show__section" aria-labelledby="history-title">
+                <h2 id="history-title">Historique</h2>
+                {% if ticket_history is empty %}
+                    <p class="admin-ticket-show__empty">Aucun événement dans l’historique.</p>
+                {% else %}
+                    <ol class="admin-ticket-show__entries">
+                        {% for entry in ticket_history %}
+                            <li class="admin-ticket-show__entry">
+                                <p class="admin-ticket-show__entry-heading">
+                                    <span>{{ entry.action }}{% if entry.changedBy %} — {{ entry.changedBy.firstname }} {{ entry.changedBy.lastname }}{% endif %}</span>
+                                    <time datetime="{{ entry.createdAt|date('c') }}">{{ entry.createdAt|date('d/m/Y H:i') }}</time>
+                                </p>
+                                {% if entry.oldValue or entry.newValue %}
+                                    <p class="admin-ticket-show__entry-content">
+                                        {% if entry.oldValue %}Ancienne valeur : {{ entry.oldValue }}{% endif %}
+                                        {% if entry.oldValue and entry.newValue %}<br>{% endif %}
+                                        {% if entry.newValue %}Nouvelle valeur : {{ entry.newValue }}{% endif %}
+                                    </p>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ol>
+                {% endif %}
+            </section>
+
+            <section class="admin-ticket-show__section" aria-labelledby="ai-analyses-title">
+                <h2 id="ai-analyses-title">Analyses IA</h2>
+                {% if ai_analyses is empty %}
+                    <p class="admin-ticket-show__empty">Aucune analyse IA disponible.</p>
+                {% else %}
+                    <ol class="admin-ticket-show__entries">
+                        {% for analysis in ai_analyses %}
+                            <li class="admin-ticket-show__entry">
+                                <p class="admin-ticket-show__entry-heading">
+                                    <span>Analyse IA</span>
+                                    <time datetime="{{ analysis.createdAt|date('c') }}">{{ analysis.createdAt|date('d/m/Y H:i') }}</time>
+                                </p>
+                                {% if analysis.summary %}
+                                    <p class="admin-ticket-show__entry-content">{{ analysis.summary }}</p>
+                                {% endif %}
+                                <dl class="admin-ticket-show__details">
+                                    {% if analysis.suggestedPriority %}
+                                        <div><dt>Priorité suggérée</dt><dd>{{ priority_labels[analysis.suggestedPriority]|default(analysis.suggestedPriority) }}</dd></div>
+                                    {% endif %}
+                                    {% if analysis.suggestedCategory %}
+                                        <div><dt>Catégorie suggérée</dt><dd>{{ analysis.suggestedCategory }}</dd></div>
+                                    {% endif %}
+                                    {% if analysis.keywords %}
+                                        <div><dt>Mots-clés</dt><dd>{{ analysis.keywords|join(', ') }}</dd></div>
+                                    {% endif %}
+                                    {% if analysis.suggestions %}
+                                        <div>
+                                            <dt>Suggestions</dt>
+                                            <dd>
+                                                <ul>
+                                                    {% for suggestion in analysis.suggestions %}
+                                                        <li>{{ suggestion }}</li>
+                                                    {% endfor %}
+                                                </ul>
+                                            </dd>
+                                        </div>
+                                    {% endif %}
+                                </dl>
+                            </li>
+                        {% endfor %}
+                    </ol>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+{% endblock %}

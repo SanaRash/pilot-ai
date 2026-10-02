@@ -3,7 +3,10 @@
 namespace App\Controller;
 
 use App\Entity\Ticket;
+use App\Repository\AIAnalysisRepository;
 use App\Repository\CategoryRepository;
+use App\Repository\InterventionRepository;
+use App\Repository\TicketHistoryRepository;
 use App\Repository\TicketRepository;
 use App\Repository\UserRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -49,6 +52,32 @@ final class AdminController extends AbstractController
             'technician_count' => $userRepository->countByPersistedRole('ROLE_TECHNICIAN'),
             'category_count' => $categoryRepository->count([]),
             'recent_tickets' => $ticketRepository->findRecentForAdmin(),
+            'status_labels' => self::STATUS_LABELS,
+            'priority_labels' => self::PRIORITY_LABELS,
+        ]);
+    }
+
+    #[Route('/admin/tickets/{id}', name: 'app_admin_ticket_show', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function showTicket(
+        Ticket $ticket,
+        InterventionRepository $interventionRepository,
+        TicketHistoryRepository $ticketHistoryRepository,
+        AIAnalysisRepository $aiAnalysisRepository,
+    ): Response {
+        return $this->render('admin/ticket_show.html.twig', [
+            'ticket' => $ticket,
+            'interventions' => $interventionRepository->findBy(
+                ['ticket' => $ticket],
+                ['createdAt' => 'ASC', 'id' => 'ASC'],
+            ),
+            'ticket_history' => $ticketHistoryRepository->findBy(
+                ['ticket' => $ticket],
+                ['createdAt' => 'ASC', 'id' => 'ASC'],
+            ),
+            'ai_analyses' => $aiAnalysisRepository->findBy(
+                ['ticket' => $ticket],
+                ['createdAt' => 'DESC', 'id' => 'DESC'],
+            ),
             'status_labels' => self::STATUS_LABELS,
             'priority_labels' => self::PRIORITY_LABELS,
         ]);

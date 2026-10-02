@@ -204,6 +204,10 @@ try {
 
     ensureAdminDashboard(str_contains($html, 'Tickets récents'), 'Recent tickets section is missing.');
     ensureAdminDashboard(str_contains($html, 'Ticket récent même date'), 'A recent ticket is missing.');
+    ensureAdminDashboard(
+        str_contains($html, sprintf('href="/admin/tickets/%d"', $openUnassignedSameDateHigherId->getId())),
+        'Recent ticket title must link to the admin ticket detail.',
+    );
     ensureAdminDashboard(str_contains($html, '&lt;script&gt;alert(&quot;admin-ticket&quot;)&lt;/script&gt;'), 'Ticket title must be escaped.');
     ensureAdminDashboard(!str_contains($html, '<script>alert("admin-ticket")</script>'), 'An unescaped ticket title was rendered.');
     ensureAdminDashboard(!str_contains($html, 'Ticket admin hors top cinq'), 'More than five recent tickets were rendered.');

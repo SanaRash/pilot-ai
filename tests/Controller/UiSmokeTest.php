@@ -111,7 +111,7 @@ function uiSmokeRender(
         '/admin/users' => 'app_admin_users',
         '/admin/categories' => 'app_admin_categories',
         '/admin/statistics' => 'app_admin_statistics',
-        default => null,
+        default => preg_match('#^/admin/tickets/\d+$#D', $path) ? 'app_admin_ticket_show' : null,
     });
     $request->setSession($session);
     $requestStack->push($request);
@@ -392,6 +392,28 @@ try {
     ensureUiSmoke(str_contains($adminDashboardHtml, 'Dashboard admin'), 'Admin dashboard title is missing.');
     ensureUiSmoke(str_contains($adminDashboardHtml, 'Tickets récents'), 'Admin dashboard recent tickets section is missing.');
     ensureUiSmoke(!str_contains($adminDashboardHtml, '<form'), 'Admin dashboard must remain read-only.');
+
+    $adminTicketShowPath = '/admin/tickets/'.$assignedTicket->getId();
+    $adminTicketShowHtml = uiSmokeAssertOk(uiSmokeRender(
+        $requestStack,
+        $tokenStorage,
+        $admin,
+        $adminTicketShowPath,
+        static fn (): Response => $adminController->showTicket(
+            $assignedTicket,
+            $interventionRepository,
+            $ticketHistoryRepository,
+            $aiAnalysisRepository,
+        ),
+    ), $adminTicketShowPath);
+    uiSmokeAssertOnlyAdminNavigation($adminTicketShowHtml);
+    ensureUiSmoke(str_contains($adminTicketShowHtml, 'href="/admin">Dashboard</a>'), 'Admin ticket detail must retain the Admin dashboard navigation.');
+    ensureUiSmoke(str_contains($adminTicketShowHtml, 'Consultation en lecture seule'), 'Admin ticket detail read-only notice is missing.');
+    ensureUiSmoke(str_contains($adminTicketShowHtml, 'Ticket assigné smoke'), 'Admin ticket detail title is missing.');
+    ensureUiSmoke(str_contains($adminTicketShowHtml, 'Résumé IA smoke'), 'Admin ticket detail AI analysis is missing.');
+    ensureUiSmoke(str_contains($adminTicketShowHtml, 'Intervention '.$escapedHostile), 'Admin ticket detail intervention is missing.');
+    ensureUiSmoke(!str_contains($adminTicketShowHtml, $hostile), 'Admin ticket detail rendered raw hostile data.');
+    ensureUiSmoke(!str_contains($adminTicketShowHtml, '<form'), 'Admin ticket detail must remain read-only.');
 
     $adminUsersHtml = uiSmokeAssertOk(uiSmokeRender($requestStack, $tokenStorage, $admin, '/admin/users', static fn (): Response => $adminController->users($userRepository)), '/admin/users');
     uiSmokeAssertNavigation($adminUsersHtml, 'Admin users', '/admin/users');

@@ -104,6 +104,7 @@ function securityMatrixHandle(
 
     if (null !== $session) {
         $request->setSession($session);
+        $request->cookies->set($session->getName(), $session->getId());
     }
 
     return $kernel->handle($request, HttpKernelInterface::MAIN_REQUEST);
@@ -305,7 +306,7 @@ try {
     foreach (['/technician', '/technician/tickets', '/technician/tickets/assigned', '/technician/tickets/'.$assignedTicket->getId()] as $path) {
         assertSecurityMatrixStatus($kernel, null, $path, Response::HTTP_FOUND, 'anonymous '.$path);
     }
-    foreach (['/admin', '/admin/users', '/admin/categories', '/admin/statistics'] as $path) {
+    foreach (['/admin', '/admin/users', '/admin/categories', '/admin/statistics', '/admin/tickets/'.$assignedTicket->getId()] as $path) {
         assertSecurityMatrixStatus($kernel, null, $path, Response::HTTP_FOUND, 'anonymous '.$path);
     }
 
@@ -338,6 +339,14 @@ try {
     assertSecurityMatrixLoginRedirectsTo($kernel, $adminUser, '/admin');
     assertSecurityMatrixLoginRedirectsTo($kernel, $technicianClientUser, '/technician');
     $logoutSession = assertSecurityMatrixLoginRedirectsTo($kernel, $adminTechnicianClientUser, '/admin');
+
+    $clientAdminSession = assertSecurityMatrixLoginRedirectsTo($kernel, $clientUser, '/client');
+    $technicianAdminSession = assertSecurityMatrixLoginRedirectsTo($kernel, $technicianUser, '/technician');
+    $adminTicketShowSession = assertSecurityMatrixLoginRedirectsTo($kernel, $adminUser, '/admin');
+    $adminTicketShowPath = '/admin/tickets/'.$assignedTicket->getId();
+    assertSecurityMatrixStatus($kernel, $clientAdminSession, $adminTicketShowPath, Response::HTTP_FORBIDDEN, 'ROLE_CLIENT admin ticket detail');
+    assertSecurityMatrixStatus($kernel, $technicianAdminSession, $adminTicketShowPath, Response::HTTP_FORBIDDEN, 'ROLE_TECHNICIAN admin ticket detail');
+    assertSecurityMatrixStatus($kernel, $adminTicketShowSession, $adminTicketShowPath, Response::HTTP_OK, 'ROLE_ADMIN admin ticket detail');
 
     $logoutRequest = Request::create('/logout', 'GET');
     $logoutRequest->setSession($logoutSession);
