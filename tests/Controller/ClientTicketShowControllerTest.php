@@ -3,10 +3,12 @@
 declare(strict_types=1);
 
 use App\Controller\ClientTicketController;
+use App\Entity\Intervention;
 use App\Entity\Ticket;
 use App\Entity\User;
 use App\Kernel;
 use App\Repository\TicketRepository;
+use App\Repository\InterventionRepository;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Container\ContainerInterface;
@@ -82,6 +84,8 @@ $tokenStorage = $controllerContainer->get('security.token_storage');
 $requestStack = $controllerContainer->get('request_stack');
 /** @var TicketRepository $ticketRepository */
 $ticketRepository = $entityManager->getRepository(Ticket::class);
+/** @var InterventionRepository $interventionRepository */
+$interventionRepository = $entityManager->getRepository(Intervention::class);
 
 $connection->beginTransaction();
 $testRequest = Request::create('/client/tickets/1', 'GET');
@@ -111,15 +115,53 @@ try {
         Ticket::STATUS_OPEN,
         new DateTimeImmutable('2026-09-11 10:00:00'),
     );
+    $ticketWithoutPublishedUpdates = clientTicketShowTicket(
+        $client,
+        'Ticket sans mise à jour publiée',
+        'Demande en attente de suivi.',
+        Ticket::STATUS_OPEN,
+        new DateTimeImmutable('2026-09-12 10:00:00'),
+    );
 
     $entityManager->persist($ticket);
     $entityManager->persist($foreignTicket);
+    $entityManager->persist($ticketWithoutPublishedUpdates);
+    $entityManager->flush();
+
+    foreach ([
+        (new Intervention())
+            ->setTicket($ticket)
+            ->setTechnician($technician)
+            ->setContent('<script>alert("visible")</script>')
+            ->setCreatedAt(new DateTimeImmutable('2026-09-12 09:00:00'))
+            ->setIsClientVisible(true),
+        (new Intervention())
+            ->setTicket($ticket)
+            ->setTechnician($technician)
+            ->setContent('Mise à jour visible suivante')
+            ->setCreatedAt(new DateTimeImmutable('2026-09-12 09:00:00'))
+            ->setIsClientVisible(true),
+        (new Intervention())
+            ->setTicket($ticket)
+            ->setTechnician($technician)
+            ->setContent('Note interne confidentielle')
+            ->setCreatedAt(new DateTimeImmutable('2026-09-13 09:00:00')),
+        (new Intervention())
+            ->setTicket($foreignTicket)
+            ->setTechnician($technician)
+            ->setContent('Mise à jour autre client')
+            ->setCreatedAt(new DateTimeImmutable('2026-09-14 09:00:00'))
+            ->setIsClientVisible(true),
+    ] as $intervention) {
+        $entityManager->persist($intervention);
+    }
     $entityManager->flush();
 
     $tokenStorage->setToken(new UsernamePasswordToken($client, 'main', $client->getRoles()));
     $ticketCountBeforeRender = (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket');
     $historyCountBeforeRender = (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history');
-    $response = $controller->show((int) $ticket->getId(), $ticketRepository);
+    $interventionCountBeforeRender = (int) $connection->fetchOne('SELECT COUNT(*) FROM intervention');
+    $response = $controller->show((int) $ticket->getId(), $ticketRepository, $interventionRepository);
     $html = $response->getContent();
 
     ensureClientTicketShow(Response::HTTP_OK === $response->getStatusCode(), 'The owner must be able to view the ticket detail.');
@@ -136,6 +178,17 @@ try {
     ensureClientTicketShow(str_contains($html, 'Suivi'), 'The tracking section is missing.');
     ensureClientTicketShow(str_contains($html, '10/09/2026 14:02 — Demande créée'), 'The derived creation tracking line is missing.');
     ensureClientTicketShow(!str_contains($html, 'Ticket confidentiel autre client'), 'Another client ticket was exposed.');
+    ensureClientTicketShow(str_contains($html, 'Suivi de votre demande'), 'The client update section is missing.');
+    ensureClientTicketShow(str_contains($html, '&lt;script&gt;alert(&quot;visible&quot;)&lt;/script&gt;'), 'Visible intervention content must be escaped.');
+    ensureClientTicketShow(str_contains($html, 'Mise à jour visible suivante'), 'The second visible intervention is missing.');
+    ensureClientTicketShow(
+        strpos($html, '&lt;script&gt;alert(&quot;visible&quot;)&lt;/script&gt;') < strpos($html, 'Mise à jour visible suivante'),
+        'Interventions with identical dates must be ordered by id.',
+    );
+    ensureClientTicketShow(!str_contains($html, '<script>alert("visible")</script>'), 'Raw intervention content must not be rendered.');
+    ensureClientTicketShow(!str_contains($html, 'Note interne confidentielle'), 'Internal interventions must never be shown to the client.');
+    ensureClientTicketShow(!str_contains($html, 'Mise à jour autre client'), 'A different client ticket intervention must not be shown.');
+    ensureClientTicketShow(str_contains($html, '12/09/2026 09:00'), 'Visible intervention date is missing.');
 
     foreach ([
         Ticket::PRIORITY_URGENT,
@@ -155,15 +208,19 @@ try {
 
     ensureClientTicketShow($ticketCountBeforeRender === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket'), 'Rendering the detail must not create tickets.');
     ensureClientTicketShow($historyCountBeforeRender === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history'), 'Rendering the detail must not create history.');
+    ensureClientTicketShow($interventionCountBeforeRender === (int) $connection->fetchOne('SELECT COUNT(*) FROM intervention'), 'Rendering the detail must not mutate interventions.');
+
+    $emptyUpdatesResponse = $controller->show((int) $ticketWithoutPublishedUpdates->getId(), $ticketRepository, $interventionRepository);
+    ensureClientTicketShow(str_contains((string) $emptyUpdatesResponse->getContent(), 'Aucune mise à jour n’a encore été publiée.'), 'The empty published-update state is missing.');
 
     try {
-        $controller->show((int) $foreignTicket->getId(), $ticketRepository);
+        $controller->show((int) $foreignTicket->getId(), $ticketRepository, $interventionRepository);
         throw new RuntimeException('A foreign client ticket detail was not rejected.');
     } catch (NotFoundHttpException) {
     }
 
     try {
-        $controller->show(999999999, $ticketRepository);
+        $controller->show(999999999, $ticketRepository, $interventionRepository);
         throw new RuntimeException('A missing ticket detail was not rejected.');
     } catch (NotFoundHttpException) {
     }

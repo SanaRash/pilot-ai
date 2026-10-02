@@ -405,6 +405,20 @@ try {
 
     $assignedTicket = $entityManager->find(Ticket::class, $assignedTicket->getId());
     ensureSecurityMatrix($assignedTicket instanceof Ticket, 'Assigned ticket fixture must still exist.');
+    securityMatrixSetUser($tokenStorage, $clientUser);
+    $clientInterventionRequest = Request::create('/technician/tickets/'.$assignedTicket->getId().'/interventions', 'POST', [
+        'intervention' => ['content' => 'Intervention interdite au client', '_token' => 'invalid-token'],
+    ]);
+    assertSecurityMatrixThrowsAccessDeniedWithRequest(
+        $requestStack,
+        $clientInterventionRequest,
+        static fn () => $technicianController->createIntervention($assignedTicket, $clientInterventionRequest, $categoryRepository, $interventionRepository, $ticketHistoryRepository, $aiAnalysisRepository, $entityManager),
+        'Intervention creation by a client',
+    );
+    assertSecurityMatrixNoMutation($entityManager, 'Client intervention POST attempt', $beforeTicketCount, $beforeInterventionCount, $beforeHistoryCount);
+
+    $assignedTicket = $entityManager->find(Ticket::class, $assignedTicket->getId());
+    ensureSecurityMatrix($assignedTicket instanceof Ticket, 'Assigned ticket fixture must still exist after client ownership checks.');
     $otherAssignedTicket = $entityManager->find(Ticket::class, $otherAssignedTicket->getId());
     ensureSecurityMatrix($otherAssignedTicket instanceof Ticket, 'Other assigned ticket fixture must still exist.');
 

@@ -370,6 +370,7 @@ try {
     $interventionRequest = technicianE2EAuthenticatedRequest($tokenStorage, $technicianA, '/technician/tickets/'.$mainTicket->getId().'/interventions', 'POST', $technicianASession, [
         'intervention' => [
             'content' => $interventionContent,
+            'isClientVisible' => '1',
             '_token' => technicianE2ECsrf($requestStack, $technicianASession, $csrfTokenManager, 'add-intervention-'.$mainTicket->getId()),
         ],
     ], ['HTTP_ORIGIN' => 'http://localhost']);
@@ -387,6 +388,24 @@ try {
     ensureTechnicianE2E($intervention instanceof Intervention, 'Created intervention must be found.');
     ensureTechnicianE2E($intervention->getTechnician()?->getId() === $technicianA->getId(), 'Intervention technician must be Technician A.');
     ensureTechnicianE2E($intervention->getCreatedAt() instanceof DateTimeImmutable, 'Intervention createdAt must be set server-side.');
+    ensureTechnicianE2E(1 === (int) $connection->fetchOne('SELECT CASE WHEN is_client_visible THEN 1 ELSE 0 END FROM intervention WHERE id = ?', [$intervention->getId()]), 'A checked visibility checkbox must persist as visible.');
+
+    $internalInterventionContent = 'Note E2E réservée à l’équipe technique.';
+    $internalInterventionRequest = technicianE2EAuthenticatedRequest($tokenStorage, $technicianA, '/technician/tickets/'.$mainTicket->getId().'/interventions', 'POST', $technicianASession, [
+        'intervention' => [
+            'content' => $internalInterventionContent,
+            '_token' => technicianE2ECsrf($requestStack, $technicianASession, $csrfTokenManager, 'add-intervention-'.$mainTicket->getId()),
+        ],
+    ], ['HTTP_ORIGIN' => 'http://localhost']);
+    $internalInterventionResponse = technicianE2ERender(
+        $requestStack,
+        $internalInterventionRequest,
+        static fn (): Response => $controller->createIntervention($mainTicket, $internalInterventionRequest, $categoryRepository, $interventionRepository, $ticketHistoryRepository, $aiAnalysisRepository, $entityManager),
+    );
+    ensureTechnicianE2E(Response::HTTP_FOUND === $internalInterventionResponse->getStatusCode(), 'Creating an unchecked internal intervention must redirect.');
+    $internalIntervention = $interventionRepository->findOneBy(['ticket' => $mainTicket, 'content' => $internalInterventionContent]);
+    ensureTechnicianE2E($internalIntervention instanceof Intervention, 'The internal intervention must be persisted.');
+    ensureTechnicianE2E(0 === (int) $connection->fetchOne('SELECT CASE WHEN is_client_visible THEN 1 ELSE 0 END FROM intervention WHERE id = ?', [$internalIntervention->getId()]), 'An unchecked visibility checkbox must persist as internal.');
 
     $finalDetailResponse = technicianE2ERender(
         $requestStack,
@@ -399,6 +418,8 @@ try {
         ensureTechnicianE2E(str_contains($finalHtml, $label), sprintf('Final history must display %s.', $label));
     }
     ensureTechnicianE2E(str_contains($finalHtml, $interventionContent), 'Final detail must display the intervention.');
+    ensureTechnicianE2E(str_contains($finalHtml, 'Visible au client'), 'Technician detail must identify visible interventions.');
+    ensureTechnicianE2E(str_contains($finalHtml, 'Interne'), 'Technician detail must identify internal interventions.');
     ensureTechnicianE2E(str_contains($finalHtml, 'Résumé IA passif E2E'), 'Final detail must display AI summary.');
     ensureTechnicianE2E(str_contains($finalHtml, 'HIGH'), 'Final detail must display AI suggested priority as passive data.');
     ensureTechnicianE2E(str_contains($finalHtml, 'Réseau'), 'Final detail must display AI suggested category/category data.');

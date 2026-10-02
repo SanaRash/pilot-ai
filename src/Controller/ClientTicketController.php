@@ -9,6 +9,7 @@ use App\Entity\Ticket;
 use App\Entity\User;
 use App\Form\TicketType;
 use App\Repository\TicketRepository;
+use App\Repository\InterventionRepository;
 use App\Service\TicketHistoryService;
 use Doctrine\DBAL\Exception as DBALException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -50,7 +51,11 @@ final class ClientTicketController extends AbstractController
     }
 
     #[Route('/client/tickets/{id}', name: 'app_client_ticket_show', methods: ['GET'])]
-    public function show(int $id, TicketRepository $ticketRepository): Response
+    public function show(
+        int $id,
+        TicketRepository $ticketRepository,
+        InterventionRepository $interventionRepository,
+    ): Response
     {
         $user = $this->getUser();
 
@@ -70,6 +75,7 @@ final class ClientTicketController extends AbstractController
         return $this->render('client_ticket/show.html.twig', [
             'ticket' => $ticket,
             'status_labels' => self::STATUS_LABELS,
+            'client_visible_interventions' => $interventionRepository->findClientVisibleForTicket($ticket),
         ]);
     }
 

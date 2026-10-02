@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 use App\Controller\ClientTicketController;
+use App\Entity\Intervention;
 use App\Entity\Ticket;
 use App\Entity\User;
 use App\Kernel;
+use App\Repository\InterventionRepository;
 use App\Repository\TicketRepository;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
@@ -85,6 +87,8 @@ $requestStack = $controllerContainer->get('request_stack');
 $twig = $controllerContainer->get('twig');
 /** @var TicketRepository $ticketRepository */
 $ticketRepository = $entityManager->getRepository(Ticket::class);
+/** @var InterventionRepository $interventionRepository */
+$interventionRepository = $entityManager->getRepository(Intervention::class);
 
 $connection->beginTransaction();
 $testRequest = Request::create('/client/tickets', 'GET');
@@ -186,7 +190,7 @@ try {
 
     $tokenStorage->setToken(new UsernamePasswordToken($client, 'main', $client->getRoles()));
     try {
-        $controller->show((int) $foreignTicket->getId(), $ticketRepository);
+        $controller->show((int) $foreignTicket->getId(), $ticketRepository, $interventionRepository);
         throw new RuntimeException('A foreign client ticket detail was not rejected.');
     } catch (NotFoundHttpException) {
     }

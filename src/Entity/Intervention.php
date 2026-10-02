@@ -20,6 +20,9 @@ class Intervention
     #[ORM\Column]
     private ?\DateTimeImmutable $createdAt = null;
 
+    #[ORM\Column(options: ['default' => false])]
+    private bool $isClientVisible = false;
+
     #[ORM\ManyToOne(inversedBy: 'interventions')]
     #[ORM\JoinColumn(nullable: false)]
     private ?Ticket $ticket = null;
@@ -53,6 +56,23 @@ class Intervention
     public function setCreatedAt(\DateTimeImmutable $createdAt): static
     {
         $this->createdAt = $createdAt;
+
+        return $this;
+    }
+
+    public function isClientVisible(): bool
+    {
+        return $this->isClientVisible;
+    }
+
+    public function getIsClientVisible(): bool
+    {
+        return $this->isClientVisible;
+    }
+
+    public function setIsClientVisible(bool $isClientVisible): static
+    {
+        $this->isClientVisible = $isClientVisible;
 
         return $this;
     }

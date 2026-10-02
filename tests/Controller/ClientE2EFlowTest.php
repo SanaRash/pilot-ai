@@ -8,10 +8,18 @@ use App\AI\AIProviderInterface;
 use App\AI\AIService;
 use App\Controller\ClientController;
 use App\Controller\ClientTicketController;
+use App\Controller\TechnicianController;
 use App\Entity\AIAnalysis;
+use App\Entity\Category;
+use App\Entity\Intervention;
 use App\Entity\Ticket;
+use App\Entity\TicketHistory;
 use App\Entity\User;
 use App\Kernel;
+use App\Repository\AIAnalysisRepository;
+use App\Repository\CategoryRepository;
+use App\Repository\InterventionRepository;
+use App\Repository\TicketHistoryRepository;
 use App\Repository\TicketRepository;
 use App\Service\TicketHistoryService;
 use Doctrine\DBAL\Connection;
@@ -28,6 +36,7 @@ use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\PasswordHasher\Hasher\NativePasswordHasher;
 
@@ -157,6 +166,22 @@ function clientE2ETicketCsrfToken(string $html): string
     return html_entity_decode($matches[1], ENT_QUOTES | ENT_HTML5);
 }
 
+function clientE2ECsrfToken(
+    RequestStack $requestStack,
+    Session $session,
+    CsrfTokenManagerInterface $csrfTokenManager,
+    string $tokenId,
+): string {
+    $request = clientE2ERequest('/_csrf', 'GET', $session);
+    $requestStack->push($request);
+
+    try {
+        return $csrfTokenManager->getToken($tokenId)->getValue();
+    } finally {
+        $requestStack->pop();
+    }
+}
+
 (new Dotenv())->bootEnv(dirname(__DIR__, 2).'/.env');
 $kernel = new Kernel($_SERVER['APP_ENV'] ?? 'dev', true);
 $kernel->boot();
@@ -182,15 +207,29 @@ $tokenStorage = $controllerContainer->get('security.token_storage');
 $requestStack = $controllerContainer->get('request_stack');
 /** @var TicketRepository $ticketRepository */
 $ticketRepository = $entityManager->getRepository(Ticket::class);
+/** @var InterventionRepository $interventionRepository */
+$interventionRepository = $entityManager->getRepository(Intervention::class);
+/** @var CategoryRepository $categoryRepository */
+$categoryRepository = $entityManager->getRepository(Category::class);
+/** @var TicketHistoryRepository $ticketHistoryRepository */
+$ticketHistoryRepository = $entityManager->getRepository(TicketHistory::class);
+/** @var AIAnalysisRepository $aiAnalysisRepository */
+$aiAnalysisRepository = $entityManager->getRepository(AIAnalysis::class);
+$technicianController = $kernel->getContainer()->get(TechnicianController::class);
+/** @var CsrfTokenManagerInterface $csrfTokenManager */
+$csrfTokenManager = $controllerContainer->get('security.csrf.token_manager');
 $ticketHistoryService = new TicketHistoryService($entityManager);
 $connection->beginTransaction();
 
 try {
     $clientA = clientE2EUser('client-e2e-a@example.test', 'Client', 'Alpha', $passwordHasher);
     $clientB = clientE2EUser('client-e2e-b@example.test', 'Client', 'Beta', $passwordHasher);
+    $technician = clientE2EUser('client-e2e-technician@example.test', 'Technicien', 'E2E', $passwordHasher)
+        ->setRoles(['ROLE_TECHNICIAN']);
 
     $entityManager->persist($clientA);
     $entityManager->persist($clientB);
+    $entityManager->persist($technician);
     $entityManager->flush();
     $clientAId = $clientA->getId();
     $clientBId = $clientB->getId();
@@ -276,13 +315,91 @@ try {
     );
     ensureClientE2E('TICKET_CREATED' === $historyAction, 'A minimal TICKET_CREATED history entry must exist for the created ticket.');
 
+    $technician = $entityManager->find(User::class, $technician->getId());
+    ensureClientE2E($technician instanceof User, 'The E2E technician must remain available.');
+    $technicianSession = new Session(new MockArraySessionStorage());
+    $assignRequest = clientE2EAuthenticatedRequest(
+        $tokenStorage,
+        $technician,
+        '/technician/tickets/'.$createdTicket->getId().'/assign',
+        'POST',
+        $technicianSession,
+        ['_token' => clientE2ECsrfToken($requestStack, $technicianSession, $csrfTokenManager, 'assign-ticket-'.$createdTicket->getId())],
+        ['HTTP_ORIGIN' => 'http://localhost'],
+    );
+    $assignResponse = clientE2ERender(
+        $requestStack,
+        $assignRequest,
+        static fn (): Response => $technicianController->assign((int) $createdTicket->getId(), $assignRequest, $entityManager, $ticketHistoryService),
+    );
+    ensureClientE2E(Response::HTTP_FOUND === $assignResponse->getStatusCode(), 'Technician assignment must redirect.');
+    $entityManager->refresh($createdTicket);
+    ensureClientE2E($technician->getId() === $createdTicket->getAssignedTo()?->getId(), 'The technician must be assigned before publishing an update.');
+
+    $visibleInterventionContent = 'Mise à jour publiée au client.';
+    $interventionRequest = clientE2EAuthenticatedRequest(
+        $tokenStorage,
+        $technician,
+        '/technician/tickets/'.$createdTicket->getId().'/interventions',
+        'POST',
+        $technicianSession,
+        ['intervention' => [
+            'content' => $visibleInterventionContent,
+            'isClientVisible' => '1',
+            '_token' => clientE2ECsrfToken($requestStack, $technicianSession, $csrfTokenManager, 'add-intervention-'.$createdTicket->getId()),
+        ]],
+        ['HTTP_ORIGIN' => 'http://localhost'],
+    );
+    $interventionResponse = clientE2ERender(
+        $requestStack,
+        $interventionRequest,
+        static fn (): Response => $technicianController->createIntervention(
+            $createdTicket,
+            $interventionRequest,
+            $categoryRepository,
+            $interventionRepository,
+            $ticketHistoryRepository,
+            $aiAnalysisRepository,
+            $entityManager,
+        ),
+    );
+    ensureClientE2E(Response::HTTP_FOUND === $interventionResponse->getStatusCode(), 'Technician intervention creation must redirect.');
+
+    $internalInterventionContent = 'Note non publiée.';
+    $internalRequest = clientE2EAuthenticatedRequest(
+        $tokenStorage,
+        $technician,
+        '/technician/tickets/'.$createdTicket->getId().'/interventions',
+        'POST',
+        $technicianSession,
+        ['intervention' => [
+            'content' => $internalInterventionContent,
+            '_token' => clientE2ECsrfToken($requestStack, $technicianSession, $csrfTokenManager, 'add-intervention-'.$createdTicket->getId()),
+        ]],
+        ['HTTP_ORIGIN' => 'http://localhost'],
+    );
+    $internalResponse = clientE2ERender(
+        $requestStack,
+        $internalRequest,
+        static fn (): Response => $technicianController->createIntervention(
+            $createdTicket,
+            $internalRequest,
+            $categoryRepository,
+            $interventionRepository,
+            $ticketHistoryRepository,
+            $aiAnalysisRepository,
+            $entityManager,
+        ),
+    );
+    ensureClientE2E(Response::HTTP_FOUND === $internalResponse->getStatusCode(), 'Technician internal intervention creation must redirect.');
+
     ensureClientE2E(str_contains($ticketListAfterCreateHtml, $title), 'Client A ticket list must display the created ticket title.');
     ensureClientE2E(str_contains($ticketListAfterCreateHtml, '/client/tickets/'.$createdTicket->getId()), 'Client A ticket list must link to the created ticket detail.');
 
     $ticketDetailResponse = clientE2ERender(
         $requestStack,
         clientE2EAuthenticatedRequest($tokenStorage, $clientA, '/client/tickets/'.$createdTicket->getId(), 'GET', $clientASession),
-        static fn (): Response => $clientTicketController->show((int) $createdTicket->getId(), $ticketRepository),
+        static fn (): Response => $clientTicketController->show((int) $createdTicket->getId(), $ticketRepository, $interventionRepository),
     );
     $ticketDetailHtml = (string) $ticketDetailResponse->getContent();
     ensureClientE2E(Response::HTTP_OK === $ticketDetailResponse->getStatusCode(), 'Client A ticket detail must return 200.');
@@ -290,6 +407,8 @@ try {
     ensureClientE2E(str_contains($ticketDetailHtml, $description), 'Client A ticket detail must display the description.');
     ensureClientE2E(str_contains($ticketDetailHtml, 'Ouvert'), 'Client A ticket detail must display the translated status.');
     ensureClientE2E(str_contains($ticketDetailHtml, 'Demande créée'), 'Client A ticket detail must display the creation follow-up line.');
+    ensureClientE2E(str_contains($ticketDetailHtml, $visibleInterventionContent), 'The client must see the technician-published update.');
+    ensureClientE2E(!str_contains($ticketDetailHtml, $internalInterventionContent), 'The client must not see internal technician notes.');
 
     foreach ([
         'Moyenne',
@@ -323,7 +442,7 @@ try {
         clientE2ERender(
             $requestStack,
             clientE2EAuthenticatedRequest($tokenStorage, $clientB, '/client/tickets/'.$createdTicket->getId(), 'GET', $clientBSession),
-            static fn (): Response => $clientTicketController->show((int) $createdTicket->getId(), $ticketRepository),
+            static fn (): Response => $clientTicketController->show((int) $createdTicket->getId(), $ticketRepository, $interventionRepository),
         );
 
         throw new RuntimeException('Client B reached Client A ticket detail.');

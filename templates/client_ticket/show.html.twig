@@ -127,8 +127,21 @@
                 </div>
 
                 <div class="client-ticket-show__section">
-                    <h2>Suivi</h2>
+                    <h2>Suivi de votre demande</h2>
                     <p class="client-ticket-show__tracking">{{ ticket.createdAt|date('d/m/Y H:i') }} — Demande créée</p>
+
+                    {% if client_visible_interventions is empty %}
+                        <p class="client-ticket-show__tracking">Aucune mise à jour n’a encore été publiée.</p>
+                    {% else %}
+                        <ol>
+                            {% for intervention in client_visible_interventions %}
+                                <li>
+                                    <p class="client-ticket-show__tracking">{{ intervention.createdAt|date('d/m/Y H:i') }}</p>
+                                    <p class="client-ticket-show__description">{{ intervention.content }}</p>
+                                </li>
+                            {% endfor %}
+                        </ol>
+                    {% endif %}
                 </div>
             </section>
         </div>

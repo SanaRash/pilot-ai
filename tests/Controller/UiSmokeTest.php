@@ -339,7 +339,7 @@ try {
     ensureUiSmoke(str_contains($clientNewHtml, 'name="ticket[description]"'), 'Client new-ticket description field is missing.');
     ensureUiSmoke(str_contains($clientNewHtml, 'name="ticket[_token]"'), 'Client new-ticket CSRF field is missing.');
 
-    $clientShowHtml = uiSmokeAssertOk(uiSmokeRender($requestStack, $tokenStorage, $client, '/client/tickets/'.$clientTicket->getId(), static fn (): Response => $clientTicketController->show((int) $clientTicket->getId(), $ticketRepository)), '/client/tickets/{id}');
+    $clientShowHtml = uiSmokeAssertOk(uiSmokeRender($requestStack, $tokenStorage, $client, '/client/tickets/'.$clientTicket->getId(), static fn (): Response => $clientTicketController->show((int) $clientTicket->getId(), $ticketRepository, $interventionRepository)), '/client/tickets/{id}');
     ensureUiSmoke(str_contains($clientShowHtml, 'Votre demande'), 'Client ticket detail section is missing.');
     ensureUiSmoke(str_contains($clientShowHtml, 'Suivi'), 'Client ticket tracking section is missing.');
     ensureUiSmoke(str_contains($clientShowHtml, 'Ouvert'), 'Client ticket status is missing.');

@@ -680,6 +680,7 @@
                                             Par {{ intervention.technician.firstname }} {{ intervention.technician.lastname }}
                                             le {{ intervention.createdAt|date('d/m/Y H:i') }}
                                         </p>
+                                        <p>{{ intervention.isClientVisible ? 'Visible au client' : 'Interne' }}</p>
                                     </li>
                                 {% endfor %}
                             </ol>
@@ -690,6 +691,7 @@
                             {{ form_start(intervention_form, {attr: {class: 'technician-ticket-detail__form'}}) }}
                                 {{ form_errors(intervention_form) }}
                                 {{ form_row(intervention_form.content, {label: 'Contenu'}) }}
+                                {{ form_row(intervention_form.isClientVisible) }}
                                 <button class="technician-ticket-detail__button" type="submit">Ajouter l'intervention</button>
                             {{ form_end(intervention_form) }}
                         {% endif %}
