@@ -114,6 +114,7 @@ final class ClientTicketController extends AbstractController
                     'event' => 'client_ticket_ai_unavailable',
                     'step' => 'ai_analysis',
                     'exception' => $exception::class,
+                    'providerStatus' => $exception->getCode() ?: null,
                     'ticketId' => $ticket->getId(),
                 ]);
             } catch (ORMException|DBALException $exception) {

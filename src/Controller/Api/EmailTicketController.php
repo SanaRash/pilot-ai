@@ -177,6 +177,7 @@ final class EmailTicketController extends AbstractController
                 'event' => 'email_ingestion_ai_unavailable',
                 'step' => 'ai_analysis',
                 'exception' => $exception::class,
+                'providerStatus' => $exception->getCode() ?: null,
                 'ticketId' => $ticket->getId(),
             ]);
         } catch (ORMException|DBALException $exception) {

@@ -47,7 +47,7 @@ function providerWithResponse(MockResponse|callable $response): OpenRouterProvid
     return new OpenRouterProvider(
         $httpClient,
         str_repeat('x', 32),
-        'mistralai/mistral-small-2603',
+        'apodex/apodex-1.1-mini:free',
     );
 }
 
@@ -91,7 +91,7 @@ function expectSingleRequestProviderException(MockResponse|callable $response, s
     $provider = new OpenRouterProvider(
         $httpClient,
         str_repeat('x', 32),
-        'mistralai/mistral-small-2603',
+        'apodex/apodex-1.1-mini:free',
     );
     $exception = expectProviderException(
         fn () => $provider->analyze(new AIAnalysisInput('a', 'b')),
@@ -125,9 +125,12 @@ ensure('HIGH' === $result->suggestedPriority, 'Priority mapping failed.');
 ensure(['connexion', 'erreur'] === $result->keywords, 'Keywords mapping failed.');
 ensure('POST' === $capturedOptions['method'], 'Unexpected HTTP method.');
 ensure('https://openrouter.ai/api/v1/chat/completions' === $capturedOptions['url'], 'Unexpected endpoint.');
-ensure('mistralai/mistral-small-2603' === $requestPayload['model'], 'Unexpected model.');
+ensure('apodex/apodex-1.1-mini:free' === $requestPayload['model'], 'Unexpected model.');
 ensure('system' === $requestPayload['messages'][0]['role'], 'System instructions must be isolated.');
 ensure('user' === $requestPayload['messages'][1]['role'], 'Ticket data must be isolated as user content.');
+ensure(['type' => 'json_object'] === $requestPayload['response_format'], 'JSON-object mode must be requested for free-model compatibility.');
+ensure(str_contains($requestPayload['messages'][0]['content'], 'sans balises Markdown'), 'The prompt must prohibit Markdown fences.');
+ensure(str_contains($requestPayload['messages'][0]['content'], 'suggestedPriority'), 'The prompt must specify the analysis contract.');
 ensure(!str_contains($requestPayload['messages'][0]['content'], 'Titre non fiable'), 'Untrusted title leaked into system instructions.');
 ensure([
     'title' => 'Titre non fiable',
@@ -138,29 +141,17 @@ ensure(true === $requestPayload['provider']['require_parameters'], 'Provider par
 ensure('deny' === $requestPayload['provider']['data_collection'], 'Data collection must be denied.');
 ensure(true === $requestPayload['provider']['zdr'], 'ZDR must be required.');
 ensure(!array_key_exists('models', $requestPayload), 'Model fallbacks must not be configured.');
-ensure(true === $requestPayload['response_format']['json_schema']['strict'], 'JSON schema must be strict.');
-ensure(false === $requestPayload['response_format']['json_schema']['schema']['additionalProperties'], 'Additional properties must be forbidden.');
-ensure('string' === $requestPayload['response_format']['json_schema']['schema']['properties']['summary']['type'], 'Summary must be required and non-nullable.');
-ensure('string' === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestedPriority']['type'], 'Suggested priority must be required and non-nullable.');
-ensure(['LOW', 'MEDIUM', 'HIGH', 'URGENT'] === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestedPriority']['enum'], 'Suggested priority enum is invalid.');
-ensure('string' === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestedCategory']['type'], 'Suggested category must be required and non-nullable.');
-ensure(1_000 === $requestPayload['max_tokens'], 'Output tokens must be bounded.');
-ensure(2_000 === $requestPayload['response_format']['json_schema']['schema']['properties']['summary']['maxLength'], 'Summary length must be bounded.');
-ensure(100 === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestedCategory']['maxLength'], 'Category length must match persistence constraints.');
-ensure('array' === $requestPayload['response_format']['json_schema']['schema']['properties']['keywords']['type'], 'Keywords must be required and non-nullable.');
-ensure(1 === $requestPayload['response_format']['json_schema']['schema']['properties']['keywords']['minItems'], 'At least one keyword must be required.');
-ensure(20 === $requestPayload['response_format']['json_schema']['schema']['properties']['keywords']['maxItems'], 'Keyword count must be bounded.');
-ensure(true === $requestPayload['response_format']['json_schema']['schema']['properties']['keywords']['uniqueItems'], 'Keywords must be unique.');
-ensure(1 === $requestPayload['response_format']['json_schema']['schema']['properties']['keywords']['items']['minLength'], 'Keywords must not be empty.');
-ensure(100 === $requestPayload['response_format']['json_schema']['schema']['properties']['keywords']['items']['maxLength'], 'Keyword length must be bounded.');
-ensure('array' === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestions']['type'], 'Suggestions must be required and non-nullable.');
-ensure(1 === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestions']['minItems'], 'At least one suggestion must be required.');
-ensure(10 === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestions']['maxItems'], 'Suggestion count must be bounded.');
-ensure(true === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestions']['uniqueItems'], 'Suggestions must be unique.');
-ensure(1 === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestions']['items']['minLength'], 'Suggestions must not be empty.');
-ensure(1_000 === $requestPayload['response_format']['json_schema']['schema']['properties']['suggestions']['items']['maxLength'], 'Suggestion length must be bounded.');
+ensure(4_096 === $requestPayload['max_tokens'], 'Output and reasoning tokens must have sufficient bounded capacity.');
 ensure(15.0 === $capturedOptions['options']['timeout'], 'Timeout must be explicit.');
 ensure(15.0 === $capturedOptions['options']['max_duration'], 'Maximum duration must be explicit.');
+
+$fencedContent = "```json\n".json_encode(validAnalysis(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)."\n```";
+$fencedResponse = json_encode([
+    'choices' => [['message' => ['content' => $fencedContent]]],
+], JSON_THROW_ON_ERROR);
+$fencedResult = providerWithResponse(new MockResponse($fencedResponse))
+    ->analyze(new AIAnalysisInput('a', 'b'));
+ensure('Résumé du ticket' === $fencedResult->summary, 'A JSON response wrapped in Markdown fences must be parsed.');
 
 $unicodeBoundaries = [
     'summary' => str_repeat('é', 2_000),
@@ -366,10 +357,11 @@ expectSingleRequestProviderException(
 );
 
 foreach ([401, 429, 400, 403, 500, 502] as $statusCode) {
-    expectSingleRequestProviderException(
+    $httpException = expectSingleRequestProviderException(
         new MockResponse('sensitive remote body', ['http_code' => $statusCode]),
         sprintf('HTTP %d', $statusCode),
     );
+    ensure($statusCode === $httpException->getCode(), sprintf('HTTP %d must be retained as safe diagnostic metadata.', $statusCode));
 }
 
 $transportRequestCounter = new class {
@@ -404,7 +396,7 @@ ensure(1 === $requestCount, 'The application must not retry a timed-out request.
 ensure(null === $timeoutException->getPrevious(), 'Timeout details must not be exposed through the exception chain.');
 
 expectProviderException(
-    fn () => (new OpenRouterProvider(new MockHttpClient(), '', 'mistralai/mistral-small-2603'))
+    fn () => (new OpenRouterProvider(new MockHttpClient(), '', 'apodex/apodex-1.1-mini:free'))
         ->analyze(new AIAnalysisInput('a', 'b')),
     'missing API key',
     0,
