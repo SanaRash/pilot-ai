@@ -2,7 +2,13 @@
 
 declare(strict_types=1);
 
+use App\AI\AIAnalysisInput;
+use App\AI\AIAnalysisResult;
+use App\AI\AIProviderInterface;
+use App\AI\AIService;
+use App\AI\Exception\AIProviderException;
 use App\Controller\ClientTicketController;
+use App\Entity\AIAnalysis;
 use App\Entity\Ticket;
 use App\Entity\User;
 use App\Kernel;
@@ -11,6 +17,7 @@ use App\Service\TicketHistoryService;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Container\ContainerInterface;
+use Psr\Log\AbstractLogger;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Dotenv\Dotenv;
 use Symfony\Component\HttpFoundation\Request;
@@ -23,6 +30,44 @@ use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInt
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 
 require dirname(__DIR__, 2).'/vendor/autoload.php';
+
+final class ClientTicketNewAIProvider implements AIProviderInterface
+{
+    public int $callCount = 0;
+    public ?Throwable $failure = null;
+
+    public function analyze(AIAnalysisInput $input): AIAnalysisResult
+    {
+        ++$this->callCount;
+
+        if (null !== $this->failure) {
+            throw $this->failure;
+        }
+
+        return new AIAnalysisResult(
+            summary: 'Le problème concerne une imprimante.',
+            suggestedPriority: Ticket::PRIORITY_HIGH,
+            suggestedCategory: 'Impression',
+            keywords: ['imprimante'],
+            suggestions: ['Vérifier la connexion de l’imprimante.'],
+        );
+    }
+}
+
+final class ClientTicketNewTestLogger extends AbstractLogger
+{
+    /** @var list<array{level: mixed, message: string, context: array}> */
+    public array $records = [];
+
+    public function log($level, string|\Stringable $message, array $context = []): void
+    {
+        $this->records[] = [
+            'level' => $level,
+            'message' => (string) $message,
+            'context' => $context,
+        ];
+    }
+}
 
 function ensureClientTicketNew(bool $condition, string $message): void
 {
@@ -106,11 +151,14 @@ $container = $kernel->getContainer();
 $entityManager = $container->get('doctrine')->getManager();
 /** @var Connection $connection */
 $connection = $entityManager->getConnection();
-/** @var ClientTicketController $controller */
-$controller = $container->get(ClientTicketController::class);
+$containerController = $container->get(ClientTicketController::class);
 $controllerContainerProperty = new ReflectionProperty(AbstractController::class, 'container');
 /** @var ContainerInterface $controllerContainer */
-$controllerContainer = $controllerContainerProperty->getValue($controller);
+$controllerContainer = $controllerContainerProperty->getValue($containerController);
+$aiProvider = new ClientTicketNewAIProvider();
+$testLogger = new ClientTicketNewTestLogger();
+$controller = new ClientTicketController(new AIService($aiProvider, $entityManager), $testLogger);
+$controller->setContainer($controllerContainer);
 /** @var TokenStorageInterface $tokenStorage */
 $tokenStorage = $controllerContainer->get('security.token_storage');
 /** @var RequestStack $requestStack */
@@ -236,6 +284,7 @@ try {
 
     ensureClientTicketNew($ticketCountBeforeInvalid === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket'), 'Invalid submissions must not create tickets.');
     ensureClientTicketNew($historyCountBeforeInvalid === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history'), 'Invalid submissions must not create history entries.');
+    ensureClientTicketNew(0 === $aiProvider->callCount, 'Invalid submissions must not trigger AI analysis.');
 
     $ticketCountBeforeSuccess = (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket');
     $historyCountBeforeSuccess = (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history');
@@ -264,10 +313,13 @@ try {
     ensureClientTicketNew('/client/tickets' === $successResponse->headers->get('Location'), 'Successful submission must redirect to app_client_tickets.');
     ensureClientTicketNew($ticketCountBeforeSuccess + 1 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket'), 'Successful submission must create exactly one ticket.');
     ensureClientTicketNew($historyCountBeforeSuccess + 1 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history'), 'Successful submission must create exactly one history entry.');
+    ensureClientTicketNew(1 === $aiProvider->callCount, 'A successful ticket creation must trigger exactly one AI analysis.');
 
     /** @var Ticket|null $createdTicket */
     $createdTicket = $ticketRepository->findOneBy(['title' => 'Impossible d’imprimer']);
     ensureClientTicketNew($createdTicket instanceof Ticket, 'The created ticket was not found.');
+    $analyses = $entityManager->getRepository(AIAnalysis::class)->findBy(['ticket' => $createdTicket]);
+    ensureClientTicketNew(1 === count($analyses), 'A successful AI analysis must be persisted exactly once.');
     ensureClientTicketNew($createdTicket->getCreatedBy() === $client, 'createdBy must be the connected client.');
     ensureClientTicketNew(Ticket::STATUS_OPEN === $createdTicket->getStatus(), 'status must be OPEN.');
     ensureClientTicketNew(Ticket::PRIORITY_MEDIUM === $createdTicket->getPriority(), 'priority must be MEDIUM.');
@@ -282,6 +334,58 @@ try {
         [$createdTicket->getId()],
     );
     ensureClientTicketNew('TICKET_CREATED' === $historyAction, 'TICKET_CREATED history must be recorded.');
+
+    $failedTitle = 'Sujet sensible pour analyse indisponible';
+    $failedDescription = 'Contenu sensible qui ne doit pas apparaître dans les journaux.';
+    $ticketCountBeforeAIError = (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket');
+    $historyCountBeforeAIError = (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history');
+    $aiCallsBeforeError = $aiProvider->callCount;
+    $aiProvider->failure = new AIProviderException('Simulated provider failure.');
+
+    $failureResponse = clientTicketNewRender(
+        $controller,
+        $ticketRepository,
+        $requestStack,
+        clientTicketNewRequest('POST', [
+            'ticket' => [
+                'title' => $failedTitle,
+                'description' => $failedDescription,
+                '_token' => clientTicketNewTokenFrom($getHtml),
+            ],
+        ], $session),
+        $entityManager,
+        $ticketHistoryService,
+    );
+
+    ensureClientTicketNew(Response::HTTP_FOUND === $failureResponse->getStatusCode(), 'An AI failure must not block the normal redirect.');
+    ensureClientTicketNew('/client/tickets' === $failureResponse->headers->get('Location'), 'An AI failure must preserve the normal redirect destination.');
+    ensureClientTicketNew($ticketCountBeforeAIError + 1 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket'), 'An AI failure must not prevent ticket creation.');
+    ensureClientTicketNew($historyCountBeforeAIError + 1 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history'), 'An AI failure must not prevent history creation.');
+    ensureClientTicketNew($aiCallsBeforeError + 1 === $aiProvider->callCount, 'The failed analysis must be attempted only once.');
+
+    $failedTicket = $ticketRepository->findOneBy(['title' => $failedTitle]);
+    ensureClientTicketNew($failedTicket instanceof Ticket, 'The ticket must remain persisted after an AI failure.');
+    ensureClientTicketNew([] === $entityManager->getRepository(AIAnalysis::class)->findBy(['ticket' => $failedTicket]), 'A failed AI analysis must not create an analysis record.');
+
+    $historyAction = $connection->fetchOne(
+        'SELECT action FROM ticket_history WHERE ticket_id = ? ORDER BY id DESC LIMIT 1',
+        [$failedTicket->getId()],
+    );
+    ensureClientTicketNew('TICKET_CREATED' === $historyAction, 'The ticket creation history must remain after an AI failure.');
+    ensureClientTicketNew(in_array('Votre demande a bien été envoyée.', $session->getFlashBag()->peek('success'), true), 'An AI failure must not replace the normal success message.');
+    $failureFlashes = $session->getFlashBag()->peekAll();
+    ensureClientTicketNew(
+        !isset($failureFlashes['error']) && !isset($failureFlashes['danger']),
+        'An AI failure must not expose a technical error flash to the client.',
+    );
+
+    $loggedData = json_encode($testLogger->records, JSON_THROW_ON_ERROR);
+    ensureClientTicketNew(!str_contains($loggedData, $failedTitle), 'AI failure logs must not contain the ticket title.');
+    ensureClientTicketNew(!str_contains($loggedData, $failedDescription), 'AI failure logs must not contain the ticket description.');
+    ensureClientTicketNew(
+        in_array(AIProviderException::class, array_column(array_column($testLogger->records, 'context'), 'exception'), true),
+        'AI failure logs must include the exception class for diagnosis.',
+    );
 
     $flashes = $session->getFlashBag()->peek('success');
     ensureClientTicketNew(in_array('Votre demande a bien été envoyée.', $flashes, true), 'The success flash is missing.');

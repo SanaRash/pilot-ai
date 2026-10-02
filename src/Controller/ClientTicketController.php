@@ -2,12 +2,18 @@
 
 namespace App\Controller;
 
+use App\AI\AIService;
+use App\AI\Exception\AIProviderException;
+use App\AI\Exception\AIValidationException;
 use App\Entity\Ticket;
 use App\Entity\User;
 use App\Form\TicketType;
 use App\Repository\TicketRepository;
 use App\Service\TicketHistoryService;
+use Doctrine\DBAL\Exception as DBALException;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\ORMException;
+use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -15,6 +21,12 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class ClientTicketController extends AbstractController
 {
+    public function __construct(
+        private readonly AIService $aiService,
+        private readonly LoggerInterface $logger,
+    ) {
+    }
+
     private const array STATUS_LABELS = [
         Ticket::STATUS_OPEN => 'Ouvert',
         Ticket::STATUS_IN_PROGRESS => 'En cours',
@@ -94,6 +106,24 @@ final class ClientTicketController extends AbstractController
                 null,
                 $user,
             );
+
+            try {
+                $this->aiService->analyzeTicket($ticket);
+            } catch (AIProviderException|AIValidationException $exception) {
+                $this->logger->warning('L’analyse IA du ticket client est indisponible.', [
+                    'event' => 'client_ticket_ai_unavailable',
+                    'step' => 'ai_analysis',
+                    'exception' => $exception::class,
+                    'ticketId' => $ticket->getId(),
+                ]);
+            } catch (ORMException|DBALException $exception) {
+                $this->logger->warning('La persistance de l’analyse IA du ticket client a échoué.', [
+                    'event' => 'client_ticket_ai_persistence_failed',
+                    'step' => 'ai_analysis_persistence',
+                    'exception' => $exception::class,
+                    'ticketId' => $ticket->getId(),
+                ]);
+            }
 
             $this->addFlash(
                 'success',

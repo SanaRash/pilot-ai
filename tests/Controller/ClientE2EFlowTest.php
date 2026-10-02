@@ -2,8 +2,13 @@
 
 declare(strict_types=1);
 
+use App\AI\AIAnalysisInput;
+use App\AI\AIAnalysisResult;
+use App\AI\AIProviderInterface;
+use App\AI\AIService;
 use App\Controller\ClientController;
 use App\Controller\ClientTicketController;
+use App\Entity\AIAnalysis;
 use App\Entity\Ticket;
 use App\Entity\User;
 use App\Kernel;
@@ -12,6 +17,7 @@ use App\Service\TicketHistoryService;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Container\ContainerInterface;
+use Psr\Log\NullLogger;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Dotenv\Dotenv;
 use Symfony\Component\HttpFoundation\Request;
@@ -26,6 +32,24 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\PasswordHasher\Hasher\NativePasswordHasher;
 
 require dirname(__DIR__, 2).'/vendor/autoload.php';
+
+final class ClientE2EAIProvider implements AIProviderInterface
+{
+    public int $callCount = 0;
+
+    public function analyze(AIAnalysisInput $input): AIAnalysisResult
+    {
+        ++$this->callCount;
+
+        return new AIAnalysisResult(
+            summary: 'Le problème concerne une demande client.',
+            suggestedPriority: Ticket::PRIORITY_MEDIUM,
+            suggestedCategory: 'Support',
+            keywords: ['support'],
+            suggestions: ['Examiner la demande.'],
+        );
+    }
+}
 
 function ensureClientE2E(bool $condition, string $message): void
 {
@@ -142,14 +166,16 @@ $container = $kernel->getContainer();
 $entityManager = $container->get('doctrine')->getManager();
 /** @var ClientController $clientController */
 $clientController = $container->get(ClientController::class);
-/** @var ClientTicketController $clientTicketController */
-$clientTicketController = $container->get(ClientTicketController::class);
+$containerTicketController = $container->get(ClientTicketController::class);
 /** @var Connection $connection */
 $connection = $entityManager->getConnection();
-$passwordHasher = new NativePasswordHasher();
 $controllerContainerProperty = new ReflectionProperty(AbstractController::class, 'container');
 /** @var ContainerInterface $controllerContainer */
-$controllerContainer = $controllerContainerProperty->getValue($clientController);
+$controllerContainer = $controllerContainerProperty->getValue($containerTicketController);
+$aiProvider = new ClientE2EAIProvider();
+$clientTicketController = new ClientTicketController(new AIService($aiProvider, $entityManager), new NullLogger());
+$clientTicketController->setContainer($controllerContainer);
+$passwordHasher = new NativePasswordHasher();
 /** @var TokenStorageInterface $tokenStorage */
 $tokenStorage = $controllerContainer->get('security.token_storage');
 /** @var RequestStack $requestStack */
@@ -215,6 +241,7 @@ try {
     ensureClientE2E('/client/tickets' === parse_url((string) $createResponse->headers->get('Location'), PHP_URL_PATH), 'Valid ticket creation must redirect to /client/tickets.');
     ensureClientE2E($ticketCountBefore + 1 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket'), 'Valid ticket creation must create exactly one ticket.');
     ensureClientE2E($historyCountBefore + 1 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history'), 'Valid ticket creation must create exactly one history entry.');
+    ensureClientE2E(1 === $aiProvider->callCount, 'Client ticket creation must invoke the fake AI provider exactly once.');
 
     $ticketListAfterCreateResponse = clientE2ERender(
         $requestStack,
@@ -240,6 +267,8 @@ try {
     ensureClientE2E(null === $createdTicket->getUpdatedAt(), 'The created ticket updatedAt must be null.');
     ensureClientE2E(null === $createdTicket->getCategory(), 'The created ticket category must be null.');
     ensureClientE2E(null === $createdTicket->getAssignedTo(), 'The created ticket assignedTo must be null.');
+    $createdAnalyses = $entityManager->getRepository(AIAnalysis::class)->findBy(['ticket' => $createdTicket]);
+    ensureClientE2E(1 === count($createdAnalyses), 'The client-created ticket must have one persisted AI analysis.');
 
     $historyAction = $connection->fetchOne(
         'SELECT action FROM ticket_history WHERE ticket_id = ? ORDER BY id DESC LIMIT 1',
