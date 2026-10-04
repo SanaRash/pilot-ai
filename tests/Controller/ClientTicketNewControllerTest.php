@@ -9,11 +9,13 @@ use App\AI\AIService;
 use App\AI\Exception\AIProviderException;
 use App\Controller\ClientTicketController;
 use App\Entity\AIAnalysis;
+use App\Entity\Category;
 use App\Entity\Ticket;
 use App\Entity\User;
 use App\Kernel;
 use App\Repository\TicketRepository;
 use App\Service\TicketHistoryService;
+use App\Service\TicketCategorySuggestionService;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Container\ContainerInterface;
@@ -35,6 +37,7 @@ final class ClientTicketNewAIProvider implements AIProviderInterface
 {
     public int $callCount = 0;
     public ?Throwable $failure = null;
+    public string $suggestedCategory = 'Impression';
 
     public function analyze(AIAnalysisInput $input): AIAnalysisResult
     {
@@ -47,7 +50,7 @@ final class ClientTicketNewAIProvider implements AIProviderInterface
         return new AIAnalysisResult(
             summary: 'Le problème concerne une imprimante.',
             suggestedPriority: Ticket::PRIORITY_HIGH,
-            suggestedCategory: 'Impression',
+            suggestedCategory: $this->suggestedCategory,
             keywords: ['imprimante'],
             suggestions: ['Vérifier la connexion de l’imprimante.'],
         );
@@ -157,7 +160,13 @@ $controllerContainerProperty = new ReflectionProperty(AbstractController::class,
 $controllerContainer = $controllerContainerProperty->getValue($containerController);
 $aiProvider = new ClientTicketNewAIProvider();
 $testLogger = new ClientTicketNewTestLogger();
-$controller = new ClientTicketController(new AIService($aiProvider, $entityManager), $testLogger);
+$ticketHistoryService = new TicketHistoryService($entityManager);
+$categoryRepository = $entityManager->getRepository(Category::class);
+$controller = new ClientTicketController(
+    new AIService($aiProvider, $entityManager),
+    $testLogger,
+    new TicketCategorySuggestionService($categoryRepository, $entityManager, $ticketHistoryService),
+);
 $controller->setContainer($controllerContainer);
 /** @var TokenStorageInterface $tokenStorage */
 $tokenStorage = $controllerContainer->get('security.token_storage');
@@ -165,7 +174,6 @@ $tokenStorage = $controllerContainer->get('security.token_storage');
 $requestStack = $controllerContainer->get('request_stack');
 /** @var TicketRepository $ticketRepository */
 $ticketRepository = $entityManager->getRepository(Ticket::class);
-$ticketHistoryService = new TicketHistoryService($entityManager);
 
 $connection->beginTransaction();
 $session = new Session(new MockArraySessionStorage());
@@ -173,8 +181,12 @@ $session = new Session(new MockArraySessionStorage());
 try {
     $client = clientTicketNewUser('client-ticket-new@example.test');
     $technician = clientTicketNewUser('client-ticket-new-tech@example.test', ['ROLE_TECHNICIAN']);
+    $impressionCategoryName = 'Impression '.bin2hex(random_bytes(6));
+    $impressionCategory = (new Category())->setName($impressionCategoryName);
+    $aiProvider->suggestedCategory = $impressionCategoryName;
     $entityManager->persist($client);
     $entityManager->persist($technician);
+    $entityManager->persist($impressionCategory);
     $entityManager->flush();
 
     $tokenStorage->setToken(new UsernamePasswordToken($client, 'main', $client->getRoles()));
@@ -312,7 +324,7 @@ try {
     ensureClientTicketNew(Response::HTTP_FOUND === $successResponse->getStatusCode(), 'Successful submission must redirect.');
     ensureClientTicketNew('/client/tickets' === $successResponse->headers->get('Location'), 'Successful submission must redirect to app_client_tickets.');
     ensureClientTicketNew($ticketCountBeforeSuccess + 1 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket'), 'Successful submission must create exactly one ticket.');
-    ensureClientTicketNew($historyCountBeforeSuccess + 1 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history'), 'Successful submission must create exactly one history entry.');
+    ensureClientTicketNew($historyCountBeforeSuccess + 2 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history'), 'Successful submission must create creation and automatic-category history entries.');
     ensureClientTicketNew(1 === $aiProvider->callCount, 'A successful ticket creation must trigger exactly one AI analysis.');
 
     /** @var Ticket|null $createdTicket */
@@ -326,14 +338,56 @@ try {
     ensureClientTicketNew('APP' === $createdTicket->getSource(), 'source must be APP.');
     ensureClientTicketNew($createdTicket->getCreatedAt() instanceof DateTimeImmutable, 'createdAt must be generated server-side.');
     ensureClientTicketNew(null === $createdTicket->getUpdatedAt(), 'updatedAt must be null.');
-    ensureClientTicketNew(null === $createdTicket->getCategory(), 'category must remain null.');
+    ensureClientTicketNew($impressionCategory === $createdTicket->getCategory(), 'A unique suggested category must be applied.');
     ensureClientTicketNew(null === $createdTicket->getAssignedTo(), 'assignedTo must remain null.');
 
     $historyAction = $connection->fetchOne(
-        'SELECT action FROM ticket_history WHERE ticket_id = ? ORDER BY id DESC LIMIT 1',
-        [$createdTicket->getId()],
+        'SELECT action FROM ticket_history WHERE ticket_id = ? AND action = ?',
+        [$createdTicket->getId(), 'TICKET_CREATED'],
     );
     ensureClientTicketNew('TICKET_CREATED' === $historyAction, 'TICKET_CREATED history must be recorded.');
+    ensureClientTicketNew(
+        1 === (int) $connection->fetchOne(
+            'SELECT COUNT(*) FROM ticket_history WHERE ticket_id = ? AND action = ? AND changed_by_id IS NULL AND old_value IS NULL AND new_value = ?',
+            [$createdTicket->getId(), 'CATEGORY_AUTO_ASSIGNED', (string) $impressionCategory->getId()],
+        ),
+        'Automatic category assignment must be recorded as a system history event.',
+    );
+
+    $categoryCountBeforeNoMatch = (int) $connection->fetchOne('SELECT COUNT(*) FROM category');
+    $aiProvider->suggestedCategory = 'Catégorie inexistante';
+    $noMatchFormResponse = clientTicketNewRender(
+        $controller,
+        $ticketRepository,
+        $requestStack,
+        clientTicketNewRequest('GET', [], $session),
+        $entityManager,
+        $ticketHistoryService,
+    );
+    $noMatchTitle = 'Demande avec catégorie inconnue';
+    $noMatchResponse = clientTicketNewRender(
+        $controller,
+        $ticketRepository,
+        $requestStack,
+        clientTicketNewRequest('POST', [
+            'ticket' => [
+                'title' => $noMatchTitle,
+                'description' => 'Aucune catégorie existante ne correspond.',
+                '_token' => clientTicketNewTokenFrom((string) $noMatchFormResponse->getContent()),
+            ],
+        ], $session),
+        $entityManager,
+        $ticketHistoryService,
+    );
+    ensureClientTicketNew(Response::HTTP_FOUND === $noMatchResponse->getStatusCode(), 'A missing category match must not block client ticket creation.');
+    ensureClientTicketNew(2 === $aiProvider->callCount, 'Each successful client creation must make only one AI call.');
+    $noMatchTicket = $ticketRepository->findOneBy(['title' => $noMatchTitle]);
+    ensureClientTicketNew($noMatchTicket instanceof Ticket && null === $noMatchTicket->getCategory(), 'A missing category match must leave the ticket uncategorized.');
+    ensureClientTicketNew($categoryCountBeforeNoMatch === (int) $connection->fetchOne('SELECT COUNT(*) FROM category'), 'A missing category match must not create a category.');
+    ensureClientTicketNew(
+        0 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history WHERE ticket_id = ? AND action = ?', [$noMatchTicket->getId(), 'CATEGORY_AUTO_ASSIGNED']),
+        'No automatic category history should be created when no category matches.',
+    );
 
     $failedTitle = 'Sujet sensible pour analyse indisponible';
     $failedDescription = 'Contenu sensible qui ne doit pas apparaître dans les journaux.';

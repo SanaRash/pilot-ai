@@ -22,6 +22,7 @@ use App\Repository\InterventionRepository;
 use App\Repository\TicketHistoryRepository;
 use App\Repository\TicketRepository;
 use App\Service\TicketHistoryService;
+use App\Service\TicketCategorySuggestionService;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Container\ContainerInterface;
@@ -45,6 +46,7 @@ require dirname(__DIR__, 2).'/vendor/autoload.php';
 final class ClientE2EAIProvider implements AIProviderInterface
 {
     public int $callCount = 0;
+    public string $suggestedCategory = 'Support';
 
     public function analyze(AIAnalysisInput $input): AIAnalysisResult
     {
@@ -53,7 +55,7 @@ final class ClientE2EAIProvider implements AIProviderInterface
         return new AIAnalysisResult(
             summary: 'Le problème concerne une demande client.',
             suggestedPriority: Ticket::PRIORITY_MEDIUM,
-            suggestedCategory: 'Support',
+            suggestedCategory: $this->suggestedCategory,
             keywords: ['support'],
             suggestions: ['Examiner la demande.'],
         );
@@ -198,7 +200,13 @@ $controllerContainerProperty = new ReflectionProperty(AbstractController::class,
 /** @var ContainerInterface $controllerContainer */
 $controllerContainer = $controllerContainerProperty->getValue($containerTicketController);
 $aiProvider = new ClientE2EAIProvider();
-$clientTicketController = new ClientTicketController(new AIService($aiProvider, $entityManager), new NullLogger());
+$ticketHistoryService = new TicketHistoryService($entityManager);
+$categoryRepository = $entityManager->getRepository(Category::class);
+$clientTicketController = new ClientTicketController(
+    new AIService($aiProvider, $entityManager),
+    new NullLogger(),
+    new TicketCategorySuggestionService($categoryRepository, $entityManager, $ticketHistoryService),
+);
 $clientTicketController->setContainer($controllerContainer);
 $passwordHasher = new NativePasswordHasher();
 /** @var TokenStorageInterface $tokenStorage */
@@ -209,8 +217,6 @@ $requestStack = $controllerContainer->get('request_stack');
 $ticketRepository = $entityManager->getRepository(Ticket::class);
 /** @var InterventionRepository $interventionRepository */
 $interventionRepository = $entityManager->getRepository(Intervention::class);
-/** @var CategoryRepository $categoryRepository */
-$categoryRepository = $entityManager->getRepository(Category::class);
 /** @var TicketHistoryRepository $ticketHistoryRepository */
 $ticketHistoryRepository = $entityManager->getRepository(TicketHistory::class);
 /** @var AIAnalysisRepository $aiAnalysisRepository */
@@ -218,7 +224,6 @@ $aiAnalysisRepository = $entityManager->getRepository(AIAnalysis::class);
 $technicianController = $kernel->getContainer()->get(TechnicianController::class);
 /** @var CsrfTokenManagerInterface $csrfTokenManager */
 $csrfTokenManager = $controllerContainer->get('security.csrf.token_manager');
-$ticketHistoryService = new TicketHistoryService($entityManager);
 $connection->beginTransaction();
 
 try {
@@ -233,6 +238,10 @@ try {
     $entityManager->flush();
     $clientAId = $clientA->getId();
     $clientBId = $clientB->getId();
+    $clientSuggestedCategory = (new Category())->setName('Client E2E '.bin2hex(random_bytes(6)));
+    $entityManager->persist($clientSuggestedCategory);
+    $entityManager->flush();
+    $aiProvider->suggestedCategory = (string) $clientSuggestedCategory->getName();
 
     $clientASession = new Session(new MockArraySessionStorage());
     clientE2ELogin($kernel, $clientA, $clientASession);
@@ -279,7 +288,7 @@ try {
     ensureClientE2E(Response::HTTP_FOUND === $createResponse->getStatusCode(), 'Valid ticket creation must redirect.');
     ensureClientE2E('/client/tickets' === parse_url((string) $createResponse->headers->get('Location'), PHP_URL_PATH), 'Valid ticket creation must redirect to /client/tickets.');
     ensureClientE2E($ticketCountBefore + 1 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket'), 'Valid ticket creation must create exactly one ticket.');
-    ensureClientE2E($historyCountBefore + 1 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history'), 'Valid ticket creation must create exactly one history entry.');
+    ensureClientE2E($historyCountBefore + 2 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history'), 'Valid ticket creation must create creation and automatic-category history entries.');
     ensureClientE2E(1 === $aiProvider->callCount, 'Client ticket creation must invoke the fake AI provider exactly once.');
 
     $ticketListAfterCreateResponse = clientE2ERender(
@@ -299,19 +308,27 @@ try {
     ensureClientE2E($createdTicket instanceof Ticket, 'The created ticket must be found deterministically by title and owner.');
     ensureClientE2E($description === $createdTicket->getDescription(), 'The created ticket description must match the submitted value.');
     ensureClientE2E($createdTicket->getCreatedBy() === $clientA, 'The created ticket owner must be Client A.');
+    ensureClientE2E($clientSuggestedCategory->getId() === $createdTicket->getCategory()?->getId(), 'The matching AI category must be applied to the client ticket.');
+    ensureClientE2E(
+        1 === (int) $connection->fetchOne(
+            'SELECT COUNT(*) FROM ticket_history WHERE ticket_id = ? AND action = ? AND changed_by_id IS NULL AND old_value IS NULL AND new_value = ?',
+            [$createdTicket->getId(), 'CATEGORY_AUTO_ASSIGNED', (string) $clientSuggestedCategory->getId()],
+        ),
+        'The automatically assigned category must be recorded in history as a system action.',
+    );
     ensureClientE2E(Ticket::STATUS_OPEN === $createdTicket->getStatus(), 'The created ticket status must be OPEN.');
     ensureClientE2E(Ticket::PRIORITY_MEDIUM === $createdTicket->getPriority(), 'The created ticket priority must be MEDIUM.');
     ensureClientE2E('APP' === $createdTicket->getSource(), 'The created ticket source must be APP.');
     ensureClientE2E($createdTicket->getCreatedAt() instanceof DateTimeImmutable, 'The created ticket must have a server-side createdAt.');
     ensureClientE2E(null === $createdTicket->getUpdatedAt(), 'The created ticket updatedAt must be null.');
-    ensureClientE2E(null === $createdTicket->getCategory(), 'The created ticket category must be null.');
+    ensureClientE2E($clientSuggestedCategory->getId() === $createdTicket->getCategory()?->getId(), 'The created ticket must use the matching AI category.');
     ensureClientE2E(null === $createdTicket->getAssignedTo(), 'The created ticket assignedTo must be null.');
     $createdAnalyses = $entityManager->getRepository(AIAnalysis::class)->findBy(['ticket' => $createdTicket]);
     ensureClientE2E(1 === count($createdAnalyses), 'The client-created ticket must have one persisted AI analysis.');
 
     $historyAction = $connection->fetchOne(
-        'SELECT action FROM ticket_history WHERE ticket_id = ? ORDER BY id DESC LIMIT 1',
-        [$createdTicket->getId()],
+        'SELECT action FROM ticket_history WHERE ticket_id = ? AND action = ? LIMIT 1',
+        [$createdTicket->getId(), 'TICKET_CREATED'],
     );
     ensureClientE2E('TICKET_CREATED' === $historyAction, 'A minimal TICKET_CREATED history entry must exist for the created ticket.');
 

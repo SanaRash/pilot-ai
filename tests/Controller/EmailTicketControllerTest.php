@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Controller\Api\EmailTicketController;
 use App\Entity\AIAnalysis;
+use App\Entity\Category;
 use App\AI\AIAnalysisResult;
 use App\AI\AIProviderInterface;
 use App\AI\AIService;
@@ -12,6 +13,7 @@ use App\Entity\TicketHistory;
 use App\Entity\User;
 use App\Service\EmailIngestionUserResolver;
 use App\Service\TicketHistoryService;
+use App\Service\TicketCategorySuggestionService;
 use App\Kernel;
 use App\Repository\UserRepository;
 use App\Security\EmailWebhookAuthenticator;
@@ -92,6 +94,7 @@ final class EmailTestAIFlushFailureListener
 final class EmailTestAIProvider implements AIProviderInterface
 {
     public static ?\App\AI\AIAnalysisInput $receivedInput = null;
+    public static int $callCount = 0;
 
     public function __construct(
         private readonly ?\Throwable $failure = null,
@@ -102,6 +105,7 @@ final class EmailTestAIProvider implements AIProviderInterface
 
     public function analyze(\App\AI\AIAnalysisInput $input): AIAnalysisResult
     {
+        ++self::$callCount;
         self::$receivedInput = $input;
         ($this->beforeResult)?->__invoke();
 
@@ -127,6 +131,15 @@ function emailTestAIService(
 ): AIService
 {
     return new AIService(new EmailTestAIProvider($failure, $result, $beforeResult), $entityManager);
+}
+
+function emailTestCategorySuggestionService(EntityManagerInterface $entityManager): TicketCategorySuggestionService
+{
+    return new TicketCategorySuggestionService(
+        $entityManager->getRepository(Category::class),
+        $entityManager,
+        new TicketHistoryService($entityManager),
+    );
 }
 
 function ensureEmailEndpoint(bool $condition, string $message): void
@@ -310,6 +323,7 @@ $unconfiguredController = new EmailTicketController(
     new TicketHistoryService($entityManager),
     new NullLogger(),
     emailTestAIService($entityManager),
+    emailTestCategorySuggestionService($entityManager),
 );
 $unconfiguredResponse = $unconfiguredController(Request::create(
     '/api/tickets/email',
@@ -475,7 +489,10 @@ try {
         ->setIsActive(true)
         ->setCreatedAt(new \DateTimeImmutable())
         ->setPassword('$2y$10$92IXUNpkjO0 composed test hash');
+    $supportCategoryName = 'Support '.bin2hex(random_bytes(6));
+    $supportCategory = (new Category())->setName($supportCategoryName);
     $creationEntityManager->persist($systemUser);
+    $creationEntityManager->persist($supportCategory);
     $creationEntityManager->flush();
 
     /*
@@ -493,6 +510,7 @@ try {
         new TicketHistoryService($creationEntityManager),
         $phaseAFailureLogger,
         emailTestAIService($creationEntityManager),
+        emailTestCategorySuggestionService($creationEntityManager),
     );
     $phaseAFailureResponse = $phaseAFailureController(Request::create(
         '/api/tickets/email',
@@ -530,7 +548,11 @@ try {
         $creationEntityManager,
         new TicketHistoryService($creationEntityManager),
         $creationLogger,
-        emailTestAIService($creationEntityManager),
+        emailTestAIService(
+            $creationEntityManager,
+            result: new AIAnalysisResult('Résumé', 'HIGH', $supportCategoryName, ['email'], ['Suggestion']),
+        ),
+        emailTestCategorySuggestionService($creationEntityManager),
     );
     $creationResponse = $creationController(Request::create(
         '/api/tickets/email',
@@ -559,14 +581,60 @@ try {
     ensureEmailEndpoint('EMAIL' === $ticket->getSource(), 'Ticket source must be EMAIL.');
     ensureEmailEndpoint('OPEN' === $ticket->getStatus(), 'Ticket status must be OPEN.');
     ensureEmailEndpoint('MEDIUM' === $ticket->getPriority(), 'Priority must be MEDIUM.');
-    ensureEmailEndpoint(null === $ticket->getCategory(), 'Category must remain null.');
+    ensureEmailEndpoint($supportCategory->getId() === $ticket->getCategory()?->getId(), 'The unique suggested category must be assigned.');
     ensureEmailEndpoint(null === $ticket->getAssignedTo(), 'Assigned user must remain null.');
     ensureEmailEndpoint(null === $ticket->getUpdatedAt(), 'Updated date must remain null.');
     ensureEmailEndpoint($systemUser === $ticket->getCreatedBy(), 'CreatedBy must be the system user.');
     ensureEmailEndpoint($ticket->getCreatedAt() instanceof \DateTimeImmutable, 'Created date must be server-generated.');
     ensureEmailEndpoint('Client@Example.test' !== $ticket->getCreatedBy()?->getEmail(), 'Sender must not become createdBy.');
+    ensureEmailEndpoint(
+        1 === (int) $creationConnection->fetchOne(
+            'SELECT COUNT(*) FROM ticket_history WHERE ticket_id = ? AND action = ? AND changed_by_id IS NULL AND old_value IS NULL AND new_value = ?',
+            [$ticket->getId(), 'CATEGORY_AUTO_ASSIGNED', (string) $supportCategory->getId()],
+        ),
+        'Automatic category assignment must be recorded as a system history event.',
+    );
     ensureEmailEndpoint('Demande de support' === EmailTestAIProvider::$receivedInput?->title, 'Only the ticket title must be sent to the AI.');
     ensureEmailEndpoint("Première ligne\n\nDeuxième paragraphe" === EmailTestAIProvider::$receivedInput?->description, 'Only the ticket description must be sent to the AI.');
+    ensureEmailEndpoint(1 === EmailTestAIProvider::$callCount, 'Successful email ingestion must call the AI provider exactly once.');
+
+    $categoryCountBeforeNoMatch = (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM category');
+    $noMatchController = new EmailTicketController(
+        new EmailWebhookAuthenticator('test-secret'),
+        new EmailIngestionUserResolver($userRepository, $creationEmail),
+        $creationEntityManager,
+        new TicketHistoryService($creationEntityManager),
+        $creationLogger,
+        emailTestAIService(
+            $creationEntityManager,
+            result: new AIAnalysisResult('Résumé', 'HIGH', 'Catégorie inconnue', ['email'], ['Suggestion']),
+        ),
+        emailTestCategorySuggestionService($creationEntityManager),
+    );
+    $noMatchResponse = $noMatchController(Request::create(
+        '/api/tickets/email',
+        'POST',
+        server: [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_AUTHORIZATION' => 'Bearer test-secret',
+        ],
+        content: encodedPayload([
+            'sender' => 'Client@Example.test',
+            'subject' => 'Aucune catégorie correspondante',
+            'content' => 'Le ticket doit rester non catégorisé.',
+        ]),
+    ));
+    $noMatchBody = decodedResponse($noMatchResponse, 'email without matching category');
+    ensureEmailEndpoint(Response::HTTP_CREATED === $noMatchResponse->getStatusCode(), 'No category match must preserve HTTP 201.');
+    ensureEmailEndpoint('created' === ($noMatchBody['data']['aiAnalysis'] ?? null), 'Category matching must not change the AI analysis status.');
+    $noMatchTicket = $creationEntityManager->find(Ticket::class, $noMatchBody['data']['id'] ?? null);
+    ensureEmailEndpoint($noMatchTicket instanceof Ticket && null === $noMatchTicket->getCategory(), 'No category match must leave the ticket uncategorized.');
+    ensureEmailEndpoint($categoryCountBeforeNoMatch === (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM category'), 'Email categorization must not create Category entities.');
+    ensureEmailEndpoint(2 === EmailTestAIProvider::$callCount, 'The unmatched email analysis must still call AI exactly once.');
+    ensureEmailEndpoint(
+        0 === (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket_history WHERE ticket_id = ? AND action = ?', [$noMatchTicket->getId(), 'CATEGORY_AUTO_ASSIGNED']),
+        'No category assignment history should be created when there is no match.',
+    );
 
     $history = $creationEntityManager->getRepository(TicketHistory::class)->findOneBy(['ticket' => $ticket]);
     ensureEmailEndpoint($history instanceof TicketHistory, 'Creation history is missing.');
@@ -583,6 +651,7 @@ try {
         new TicketHistoryService($creationEntityManager),
         $creationLogger,
         emailTestAIService($creationEntityManager, new \App\AI\Exception\AIProviderException('Provider unavailable.')),
+        emailTestCategorySuggestionService($creationEntityManager),
     );
     $failureResponse = $failureController(Request::create(
         '/api/tickets/email',
@@ -622,6 +691,7 @@ try {
             $creationEntityManager,
             result: new AIAnalysisResult('Résumé', 'INVALID', 'Support', ['email'], ['Suggestion']),
         ),
+        emailTestCategorySuggestionService($creationEntityManager),
     );
     $invalidResultResponse = $invalidResultController(Request::create(
         '/api/tickets/email',
@@ -664,6 +734,7 @@ try {
                 $creationEntityManager->getEventManager()->addEventListener(['onFlush'], $aiFlushFailureListener);
             },
         ),
+        emailTestCategorySuggestionService($creationEntityManager),
     );
     $aiPersistenceFailureResponse = $aiPersistenceFailureController(Request::create(
         '/api/tickets/email',
@@ -741,6 +812,7 @@ try {
         new TicketHistoryService($creationEntityManager),
         $phaseAFailureLogger,
         emailTestAIService($creationEntityManager),
+        emailTestCategorySuggestionService($creationEntityManager),
     );
     $phaseAFailureResponse = $phaseAFailureController(Request::create(
         '/api/tickets/email',

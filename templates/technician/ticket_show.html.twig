@@ -713,7 +713,7 @@
                                             Ancienne valeur :
                                             {% if history.action == 'TICKET_ASSIGNED' %}
                                                 {{ history.oldValue is null ? 'Non assigné' : 'Technicien #' ~ history.oldValue }}
-                                            {% elseif history.action == 'CATEGORY_CHANGED' %}
+                                            {% elseif history.action in ['CATEGORY_CHANGED', 'CATEGORY_AUTO_ASSIGNED'] %}
                                                 {{ history.oldValue is null ? 'Non catégorisé' : 'Catégorie #' ~ history.oldValue }}
                                             {% else %}
                                                 {{ history.oldValue ?? '—' }}
@@ -723,7 +723,7 @@
                                             Nouvelle valeur :
                                             {% if history.action == 'TICKET_ASSIGNED' and history.newValue is not null %}
                                                 Technicien #{{ history.newValue }}
-                                            {% elseif history.action == 'CATEGORY_CHANGED' and history.newValue is not null %}
+                                            {% elseif history.action in ['CATEGORY_CHANGED', 'CATEGORY_AUTO_ASSIGNED'] and history.newValue is not null %}
                                                 Catégorie #{{ history.newValue }}
                                             {% else %}
                                                 {{ history.newValue ?? '—' }}

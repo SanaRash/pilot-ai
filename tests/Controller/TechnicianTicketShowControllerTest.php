@@ -218,6 +218,15 @@ try {
     }
 
     $entityManager->flush();
+    $autoCategoryHistory = (new TicketHistory())
+        ->setTicket($assignedTicket)
+        ->setAction('CATEGORY_AUTO_ASSIGNED')
+        ->setOldValue(null)
+        ->setNewValue((string) $category->getId())
+        ->setChangedBy(null)
+        ->setCreatedAt(new DateTimeImmutable('2099-12-08 10:00:00'));
+    $entityManager->persist($autoCategoryHistory);
+    $entityManager->flush();
 
     $ticketCountBeforeRender = (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket');
     $historyCountBeforeRender = (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history');
@@ -258,6 +267,9 @@ try {
     ensureTechnicianTicketShow(str_contains($assignedHtml, 'Ticket similaire visible'), 'Similar tickets must remain visible.');
     ensureTechnicianTicketShow(str_contains($assignedHtml, 'Intervention visible'), 'Interventions must remain visible.');
     ensureTechnicianTicketShow(str_contains($assignedHtml, 'Statut modifié'), 'History must remain visible.');
+    ensureTechnicianTicketShow(str_contains($assignedHtml, 'Catégorie suggérée par l’IA'), 'Automatic category history must have its own label.');
+    ensureTechnicianTicketShow(str_contains($assignedHtml, 'Système'), 'Automatic category history must be attributed to the system.');
+    ensureTechnicianTicketShow(str_contains($assignedHtml, 'Catégorie #'.$category->getId()), 'Automatic category history must display the category identifier.');
     ensureTechnicianTicketShow(str_contains($assignedHtml, '2099') || str_contains($assignedHtml, '06/12/2099'), 'Dates must be displayed.');
     ensureTechnicianTicketShow(!str_contains($assignedHtml, '>APP<'), 'Source must not be displayed on assigned detail.');
     ensureTechnicianTicketShow(str_contains($assignedHtml, '>Ouvert<') || str_contains($assignedHtml, 'Ouvert'), 'Status select labels must be translated.');

@@ -5,11 +5,14 @@ namespace App\Controller\Api;
 use App\AI\AIService;
 use App\AI\Exception\AIProviderException;
 use App\AI\Exception\AIValidationException;
+use App\AI\AIAnalysisResult;
 use App\Entity\Ticket;
 use App\Security\EmailWebhookAuthenticator;
 use App\Service\EmailIngestionUserResolutionException;
 use App\Service\EmailIngestionUserResolver;
 use App\Service\TicketHistoryService;
+use App\Service\TicketCategorySuggestionException;
+use App\Service\TicketCategorySuggestionService;
 use Doctrine\DBAL\Exception as DBALException;
 use Doctrine\ORM\Exception\ORMException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -33,6 +36,7 @@ final class EmailTicketController extends AbstractController
         private readonly TicketHistoryService $ticketHistoryService,
         private readonly LoggerInterface $logger,
         private readonly AIService $aiService,
+        private readonly TicketCategorySuggestionService $ticketCategorySuggestionService,
     ) {
     }
 
@@ -169,8 +173,10 @@ final class EmailTicketController extends AbstractController
 
         $aiAnalysisStatus = 'created';
 
+        $analysisResult = null;
+
         try {
-            $this->aiService->analyzeTicket($ticket);
+            $analysisResult = $this->aiService->analyzeTicket($ticket);
         } catch (AIProviderException|AIValidationException $exception) {
             $aiAnalysisStatus = 'unavailable';
             $this->logger->warning('L’analyse IA du ticket e-mail est indisponible.', [
@@ -188,6 +194,19 @@ final class EmailTicketController extends AbstractController
                 'exception' => $exception::class,
                 'ticketId' => $ticket->getId(),
             ]);
+        }
+
+        if ($analysisResult instanceof AIAnalysisResult) {
+            try {
+                $this->ticketCategorySuggestionService->applySuggestion($ticket, $analysisResult->suggestedCategory);
+            } catch (TicketCategorySuggestionException $exception) {
+                $this->logger->warning('La catégorisation automatique du ticket e-mail a échoué.', [
+                    'event' => 'email_ingestion_category_suggestion_failed',
+                    'step' => 'category_suggestion',
+                    'exception' => $exception::class,
+                    'ticketId' => $ticket->getId(),
+                ]);
+            }
         }
 
         return new JsonResponse([

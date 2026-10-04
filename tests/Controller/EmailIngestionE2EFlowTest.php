@@ -9,6 +9,7 @@ use App\AI\AIService;
 use App\AI\Exception\AIProviderException;
 use App\Controller\Api\EmailTicketController;
 use App\Entity\AIAnalysis;
+use App\Entity\Category;
 use App\Entity\Ticket;
 use App\Entity\TicketHistory;
 use App\Entity\User;
@@ -17,6 +18,7 @@ use App\Repository\UserRepository;
 use App\Security\EmailWebhookAuthenticator;
 use App\Service\EmailIngestionUserResolver;
 use App\Service\TicketHistoryService;
+use App\Service\TicketCategorySuggestionService;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -62,13 +64,18 @@ final class EmailE2ETestLogger implements LoggerInterface
 final class EmailE2EProvider implements AIProviderInterface
 {
     public static ?AIAnalysisInput $lastInput = null;
+    public static int $callCount = 0;
 
-    public function __construct(private readonly ?Throwable $failure = null)
+    public function __construct(
+        private readonly ?Throwable $failure = null,
+        private readonly string $suggestedCategory = 'Support email',
+    )
     {
     }
 
     public function analyze(AIAnalysisInput $input): AIAnalysisResult
     {
+        ++self::$callCount;
         self::$lastInput = $input;
 
         if (null !== $this->failure) {
@@ -78,7 +85,7 @@ final class EmailE2EProvider implements AIProviderInterface
         return new AIAnalysisResult(
             'Résumé email E2E',
             Ticket::PRIORITY_HIGH,
-            'Support email',
+            $this->suggestedCategory,
             ['email', 'connexion'],
             ['Vérifier les informations transmises par le client'],
         );
@@ -120,7 +127,15 @@ function emailE2EDecode(Response $response, string $label): array
     return $decoded;
 }
 
-function emailE2EController(EntityManagerInterface $entityManager, UserRepository $userRepository, string $systemEmail, ?Throwable $aiFailure = null, ?EmailE2ETestLogger $logger = null, string $secret = EMAIL_E2E_SECRET): EmailTicketController
+function emailE2EController(
+    EntityManagerInterface $entityManager,
+    UserRepository $userRepository,
+    string $systemEmail,
+    ?Throwable $aiFailure = null,
+    ?EmailE2ETestLogger $logger = null,
+    string $secret = EMAIL_E2E_SECRET,
+    string $suggestedCategory = 'Support email',
+): EmailTicketController
 {
     return new EmailTicketController(
         new EmailWebhookAuthenticator($secret),
@@ -128,7 +143,12 @@ function emailE2EController(EntityManagerInterface $entityManager, UserRepositor
         $entityManager,
         new TicketHistoryService($entityManager),
         $logger ?? new EmailE2ETestLogger(),
-        new AIService(new EmailE2EProvider($aiFailure), $entityManager),
+        new AIService(new EmailE2EProvider($aiFailure, $suggestedCategory), $entityManager),
+        new TicketCategorySuggestionService(
+            $entityManager->getRepository(\App\Entity\Category::class),
+            $entityManager,
+            new TicketHistoryService($entityManager),
+        ),
     );
 }
 
@@ -144,29 +164,49 @@ function emailE2ESystemUser(string $email): User
         ->setPassword(password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT));
 }
 
-function emailE2EAssertTicketDefaults(Ticket $ticket, User $systemUser, string $title = 'Connexion impossible', string $description = 'La connexion au service échoue.'): void
+function emailE2EAssertTicketDefaults(
+    Ticket $ticket,
+    User $systemUser,
+    string $title = 'Connexion impossible',
+    string $description = 'La connexion au service échoue.',
+    ?Category $expectedCategory = null,
+): void
 {
     ensureEmailE2E($title === $ticket->getTitle(), 'Email subject must map to ticket title.');
     ensureEmailE2E($description === $ticket->getDescription(), 'Email content must map to ticket description.');
     ensureEmailE2E('EMAIL' === $ticket->getSource(), 'Ticket source must be EMAIL.');
     ensureEmailE2E(Ticket::STATUS_OPEN === $ticket->getStatus(), 'Ticket status must be OPEN.');
     ensureEmailE2E(Ticket::PRIORITY_MEDIUM === $ticket->getPriority(), 'Ticket priority must be MEDIUM.');
-    ensureEmailE2E(null === $ticket->getCategory(), 'Ticket category must remain null.');
+    ensureEmailE2E($expectedCategory?->getId() === $ticket->getCategory()?->getId(), 'Unexpected ticket category.');
     ensureEmailE2E(null === $ticket->getAssignedTo(), 'Ticket assignment must remain null.');
     ensureEmailE2E(null === $ticket->getUpdatedAt(), 'Ticket updatedAt must remain null.');
     ensureEmailE2E($systemUser === $ticket->getCreatedBy(), 'Ticket createdBy must be the system user.');
     ensureEmailE2E($ticket->getCreatedAt() instanceof DateTimeImmutable, 'Ticket createdAt must be generated server-side.');
 }
 
-function emailE2EAssertCreatedHistory(EntityManagerInterface $entityManager, Ticket $ticket, User $systemUser): void
+function emailE2EAssertCreatedHistory(
+    EntityManagerInterface $entityManager,
+    Ticket $ticket,
+    User $systemUser,
+    ?Category $autoAssignedCategory = null,
+): void
 {
     $histories = $entityManager->getRepository(TicketHistory::class)->findBy(['ticket' => $ticket]);
-    ensureEmailE2E(1 === count($histories), 'Exactly one ticket history entry must be created.');
-    $history = $histories[0];
+    ensureEmailE2E(null === $autoAssignedCategory ? 1 === count($histories) : 2 === count($histories), 'Unexpected ticket history count.');
+    $history = array_values(array_filter($histories, static fn (TicketHistory $entry): bool => 'TICKET_CREATED' === $entry->getAction()))[0] ?? null;
+    ensureEmailE2E($history instanceof TicketHistory, 'Ticket-created history entry is missing.');
     ensureEmailE2E('TICKET_CREATED' === $history->getAction(), 'History action must be TICKET_CREATED.');
     ensureEmailE2E(null === $history->getOldValue(), 'History oldValue must be null.');
     ensureEmailE2E(null === $history->getNewValue(), 'History newValue must be null.');
     ensureEmailE2E($systemUser === $history->getChangedBy(), 'History changedBy must be the system user.');
+
+    if (null !== $autoAssignedCategory) {
+        $categoryHistory = array_values(array_filter($histories, static fn (TicketHistory $entry): bool => 'CATEGORY_AUTO_ASSIGNED' === $entry->getAction()))[0] ?? null;
+        ensureEmailE2E($categoryHistory instanceof TicketHistory, 'Automatic category history is missing.');
+        ensureEmailE2E(null === $categoryHistory->getOldValue(), 'Automatic category oldValue must be null.');
+        ensureEmailE2E((string) $autoAssignedCategory->getId() === $categoryHistory->getNewValue(), 'Automatic category history must store the category ID.');
+        ensureEmailE2E(null === $categoryHistory->getChangedBy(), 'Automatic category history must be attributed to the system.');
+    }
 }
 
 function emailE2ECount(Connection $connection, string $table): int
@@ -197,11 +237,20 @@ $connection->beginTransaction();
 
 try {
     $systemUser = emailE2ESystemUser($systemEmail);
+    $supportEmailCategoryName = 'Support email '.bin2hex(random_bytes(6));
+    $supportEmailCategory = (new Category())->setName($supportEmailCategoryName);
     $entityManager->persist($systemUser);
+    $entityManager->persist($supportEmailCategory);
     $entityManager->flush();
 
     $logger = new EmailE2ETestLogger();
-    $controller = emailE2EController($entityManager, $userRepository, $systemEmail, logger: $logger);
+    $controller = emailE2EController(
+        $entityManager,
+        $userRepository,
+        $systemEmail,
+        logger: $logger,
+        suggestedCategory: $supportEmailCategoryName,
+    );
 
     $successResponse = $controller(emailE2ERequest(emailE2EPayload()));
     $successBody = emailE2EDecode($successResponse, 'successful ingestion');
@@ -212,14 +261,41 @@ try {
 
     $ticket = $entityManager->find(Ticket::class, $successBody['data']['id'] ?? null);
     ensureEmailE2E($ticket instanceof Ticket, 'Created email ticket must be persisted.');
-    emailE2EAssertTicketDefaults($ticket, $systemUser);
-    emailE2EAssertCreatedHistory($entityManager, $ticket, $systemUser);
+    emailE2EAssertTicketDefaults($ticket, $systemUser, expectedCategory: $supportEmailCategory);
+    emailE2EAssertCreatedHistory($entityManager, $ticket, $systemUser, $supportEmailCategory);
     ensureEmailE2E(EmailE2EProvider::$lastInput instanceof AIAnalysisInput, 'AI provider must be called with simulated provider.');
     ensureEmailE2E('Connexion impossible' === EmailE2EProvider::$lastInput->title, 'Only title must be sent to AI input.');
     ensureEmailE2E('La connexion au service échoue.' === EmailE2EProvider::$lastInput->description, 'Only description must be sent to AI input.');
     $analysis = $entityManager->getRepository(AIAnalysis::class)->findOneBy(['ticket' => $ticket]);
     ensureEmailE2E($analysis instanceof AIAnalysis, 'AIAnalysis must be created on successful simulated AI analysis.');
-    emailE2EAssertTicketDefaults($ticket, $systemUser);
+    emailE2EAssertTicketDefaults($ticket, $systemUser, expectedCategory: $supportEmailCategory);
+    ensureEmailE2E(1 === EmailE2EProvider::$callCount, 'Successful ingestion must call AI exactly once.');
+
+    $categoryCountBeforeNoMatch = emailE2ECount($connection, 'category');
+    $noMatchResponse = emailE2EController(
+        $entityManager,
+        $userRepository,
+        $systemEmail,
+        logger: $logger,
+        suggestedCategory: 'Aucune catégorie correspondante',
+    )(emailE2ERequest(emailE2EPayload([
+        'subject' => 'Ticket sans catégorie correspondante',
+        'messageId' => '<no-category@example.test>',
+    ])));
+    $noMatchBody = emailE2EDecode($noMatchResponse, 'email ingestion without category match');
+    ensureEmailE2E(Response::HTTP_CREATED === $noMatchResponse->getStatusCode(), 'No category match must preserve HTTP 201.');
+    ensureEmailE2E('created' === ($noMatchBody['data']['aiAnalysis'] ?? null), 'No category match must preserve created AI analysis status.');
+    $noMatchTicket = $entityManager->find(Ticket::class, $noMatchBody['data']['id'] ?? null);
+    ensureEmailE2E($noMatchTicket instanceof Ticket, 'Unmatched email ticket must be persisted.');
+    emailE2EAssertTicketDefaults(
+        $noMatchTicket,
+        $systemUser,
+        'Ticket sans catégorie correspondante',
+        'La connexion au service échoue.',
+    );
+    emailE2EAssertCreatedHistory($entityManager, $noMatchTicket, $systemUser);
+    ensureEmailE2E($categoryCountBeforeNoMatch === emailE2ECount($connection, 'category'), 'No category match must not create a Category.');
+    ensureEmailE2E(2 === EmailE2EProvider::$callCount, 'Unmatched email analysis must call AI exactly once.');
 
     $failureLogger = new EmailE2ETestLogger();
     $failureController = emailE2EController(

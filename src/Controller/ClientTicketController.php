@@ -5,12 +5,15 @@ namespace App\Controller;
 use App\AI\AIService;
 use App\AI\Exception\AIProviderException;
 use App\AI\Exception\AIValidationException;
+use App\AI\AIAnalysisResult;
 use App\Entity\Ticket;
 use App\Entity\User;
 use App\Form\TicketType;
 use App\Repository\TicketRepository;
 use App\Repository\InterventionRepository;
 use App\Service\TicketHistoryService;
+use App\Service\TicketCategorySuggestionException;
+use App\Service\TicketCategorySuggestionService;
 use Doctrine\DBAL\Exception as DBALException;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\ORMException;
@@ -25,6 +28,7 @@ final class ClientTicketController extends AbstractController
     public function __construct(
         private readonly AIService $aiService,
         private readonly LoggerInterface $logger,
+        private readonly TicketCategorySuggestionService $ticketCategorySuggestionService,
     ) {
     }
 
@@ -113,8 +117,10 @@ final class ClientTicketController extends AbstractController
                 $user,
             );
 
+            $analysisResult = null;
+
             try {
-                $this->aiService->analyzeTicket($ticket);
+                $analysisResult = $this->aiService->analyzeTicket($ticket);
             } catch (AIProviderException|AIValidationException $exception) {
                 $this->logger->warning('L’analyse IA du ticket client est indisponible.', [
                     'event' => 'client_ticket_ai_unavailable',
@@ -130,6 +136,19 @@ final class ClientTicketController extends AbstractController
                     'exception' => $exception::class,
                     'ticketId' => $ticket->getId(),
                 ]);
+            }
+
+            if ($analysisResult instanceof AIAnalysisResult) {
+                try {
+                    $this->ticketCategorySuggestionService->applySuggestion($ticket, $analysisResult->suggestedCategory);
+                } catch (TicketCategorySuggestionException $exception) {
+                    $this->logger->warning('La catégorisation automatique du ticket client a échoué.', [
+                        'event' => 'client_ticket_category_suggestion_failed',
+                        'step' => 'category_suggestion',
+                        'exception' => $exception::class,
+                        'ticketId' => $ticket->getId(),
+                    ]);
+                }
             }
 
             $this->addFlash(

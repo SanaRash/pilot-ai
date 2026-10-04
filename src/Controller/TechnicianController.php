@@ -44,6 +44,7 @@ final class TechnicianController extends AbstractController
         'PRIORITY_CHANGED' => 'Priorité modifiée',
         'TICKET_ASSIGNED' => 'Ticket assigné',
         'CATEGORY_CHANGED' => 'Catégorie modifiée',
+        'CATEGORY_AUTO_ASSIGNED' => 'Catégorie suggérée par l’IA',
     ];
 
     public function __construct(private readonly SimilarTicketFinder $similarTicketFinder)
