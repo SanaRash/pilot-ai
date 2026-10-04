@@ -9,9 +9,11 @@ use App\AI\AIService;
 use App\AI\Exception\AIProviderException;
 use App\AI\Exception\AIValidationException;
 use App\Entity\AIAnalysis;
+use App\Entity\Category;
 use App\Entity\Ticket;
 use App\Entity\User;
 use App\Kernel;
+use App\Repository\CategoryRepository;
 use Doctrine\ORM\Decorator\EntityManagerDecorator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Dotenv\Dotenv;
@@ -66,9 +68,11 @@ final class SpyEntityManager extends EntityManagerDecorator
 
 function serviceWithPersistenceSpy(StubAIProvider $provider, EntityManagerInterface $entityManager): array
 {
+    global $categoryRepository;
+
     $spy = new SpyEntityManager($entityManager);
 
-    return [new AIService($provider, $spy), $spy];
+    return [new AIService($provider, $spy, $categoryRepository), $spy];
 }
 
 function ensureService(bool $condition, string $message): void
@@ -94,7 +98,7 @@ function validServiceResult(): AIAnalysisResult
     return new AIAnalysisResult(
         summary: 'Le client ne parvient pas à se connecter.',
         suggestedPriority: Ticket::PRIORITY_HIGH,
-        suggestedCategory: 'Accès',
+        suggestedCategory: 'Support',
         keywords: ['connexion', 'mot de passe'],
         suggestions: ['Vérifier les journaux d’authentification.'],
     );
@@ -136,6 +140,15 @@ $kernel = new Kernel($_SERVER['APP_ENV'] ?? 'dev', true);
 $kernel->boot();
 $entityManager = $kernel->getContainer()->get('doctrine')->getManager();
 ensureService($entityManager instanceof EntityManagerInterface, 'Doctrine did not provide an ORM entity manager.');
+$categoryRepository = $entityManager->getRepository(Category::class);
+ensureService($categoryRepository instanceof CategoryRepository, 'Category repository is unavailable.');
+$connection = $entityManager->getConnection();
+$connection->beginTransaction();
+$boundaryCategory = str_repeat('é', 100);
+foreach (['Support', 'Catégorie valide', $boundaryCategory] as $categoryName) {
+    $entityManager->persist((new Category())->setName($categoryName));
+}
+$entityManager->flush();
 
 $ticket = validTicket();
 $ticketBefore = serialize($ticket);
@@ -149,11 +162,12 @@ $afterAnalysis = new DateTimeImmutable();
 ensureService($expectedResult === $actualResult, 'AIService must return the exact provider result.');
 ensureService(1 === $provider->callCount, 'Provider must be called exactly once.');
 ensureService(Ticket::PRIORITY_HIGH === $actualResult->suggestedPriority, 'Suggested priority must be returned unchanged.');
-ensureService('Accès' === $actualResult->suggestedCategory, 'Suggested category must be returned unchanged.');
+ensureService('Support' === $actualResult->suggestedCategory, 'An allowed suggested category must be returned unchanged.');
 ensureService(['connexion', 'mot de passe'] === $actualResult->keywords, 'Keywords must be returned unchanged and in the same order.');
 ensureService(['Vérifier les journaux d’authentification.'] === $actualResult->suggestions, 'Suggestions must be returned unchanged and in the same order.');
 ensureService('Impossible de se connecter' === $provider->receivedInput?->title, 'Unexpected title sent to provider.');
 ensureService('Une erreur apparaît après la saisie du mot de passe.' === $provider->receivedInput?->description, 'Unexpected description sent to provider.');
+ensureService(in_array('Support', $provider->receivedInput?->allowedCategories ?? [], true), 'Existing category names must be passed to the provider.');
 ensureService(Ticket::PRIORITY_MEDIUM === $ticket->getPriority(), 'Ticket priority must remain unchanged.');
 ensureService(null === $ticket->getCategory(), 'Ticket category must remain unchanged.');
 ensureService($ticketBefore === serialize($ticket), 'Ticket was mutated after a successful analysis.');
@@ -173,7 +187,7 @@ ensureService($persistedAnalysis->getCreatedAt() <= $afterAnalysis, 'Persisted c
 $validBoundaryResult = new AIAnalysisResult(
     summary: str_repeat('é', 2_000),
     suggestedPriority: Ticket::PRIORITY_HIGH,
-    suggestedCategory: str_repeat('é', 100),
+    suggestedCategory: $boundaryCategory,
     keywords: array_map(
         static fn (int $index): string => str_repeat('é', 97).sprintf('%03d', $index),
         range(1, 20),
@@ -191,6 +205,7 @@ ensureService(
 );
 ensureService(1 === count($boundaryPersistenceSpy->persisted), 'Boundary analysis must be persisted once.');
 ensureService(1 === $boundaryPersistenceSpy->flushCount, 'Boundary analysis must be flushed once.');
+ensureService(in_array($boundaryCategory, $boundaryProvider->receivedInput?->allowedCategories ?? [], true), 'Allowed categories must be supplied as analysis context.');
 
 $invalidInputTickets = [
     'null title' => (new Ticket())->setDescription('Description valide'),
@@ -237,10 +252,18 @@ analyzeInvalidResult(new AIAnalysisResult('', Ticket::PRIORITY_HIGH, 'Catégorie
 analyzeInvalidResult(new AIAnalysisResult(" \t\n", Ticket::PRIORITY_HIGH, 'Catégorie valide', ['mot-clé'], ['Suggestion valide']), 'ASCII blank summary');
 analyzeInvalidResult(new AIAnalysisResult("\u{00A0}\u{2003}", Ticket::PRIORITY_HIGH, 'Catégorie valide', ['mot-clé'], ['Suggestion valide']), 'Unicode blank summary');
 analyzeInvalidResult(new AIAnalysisResult(str_repeat('é', 2_001), Ticket::PRIORITY_HIGH, 'Catégorie valide', ['mot-clé'], ['Suggestion valide']), 'oversized summary');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, null, ['mot-clé'], ['Suggestion valide']), 'null category');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, '', ['mot-clé'], ['Suggestion valide']), 'empty category');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, " \t\n", ['mot-clé'], ['Suggestion valide']), 'ASCII blank category');
-analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, "\u{00A0}\u{2003}", ['mot-clé'], ['Suggestion valide']), 'Unicode blank category');
+foreach ([null, '', " \t\n", "\u{00A0}\u{2003}", 'Valeur hors liste'] as $unavailableCategory) {
+    $categoryResult = new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, $unavailableCategory, ['mot-clé'], ['Suggestion valide']);
+    $categoryProvider = new StubAIProvider($categoryResult);
+    [$categoryService, $categoryPersistenceSpy] = serviceWithPersistenceSpy($categoryProvider, $entityManager);
+    $sanitizedResult = $categoryService->analyzeTicket(validTicket());
+
+    ensureService(null === $sanitizedResult->suggestedCategory, 'Null, blank, or out-of-list category suggestions must be removed.');
+    ensureService(Ticket::PRIORITY_HIGH === $sanitizedResult->suggestedPriority, 'Category sanitization must not affect suggested priority.');
+    ensureService(1 === $categoryProvider->callCount, 'Category sanitization must not add an AI call.');
+    ensureService(1 === $categoryPersistenceSpy->flushCount, 'A categoryless analysis must still be persisted.');
+    ensureService(null === $categoryPersistenceSpy->persisted[0]->getSuggestedCategory(), 'Sanitized category must be persisted as null.');
+}
 analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, str_repeat('é', 101), ['mot-clé'], ['Suggestion valide']), 'oversized category');
 analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', null, ['Suggestion valide']), 'null keywords');
 analyzeInvalidResult(new AIAnalysisResult('Résumé valide', Ticket::PRIORITY_HIGH, 'Catégorie valide', [], ['Suggestion valide']), 'empty keywords');
@@ -361,7 +384,7 @@ try {
 
     $databaseTicketBefore = serialize($databaseTicket);
     $databaseProvider = new StubAIProvider(validServiceResult());
-    $databaseService = new AIService($databaseProvider, $entityManager);
+    $databaseService = new AIService($databaseProvider, $entityManager, $categoryRepository);
     $databaseService->analyzeTicket($databaseTicket);
     $databaseService->analyzeTicket($databaseTicket);
 
@@ -391,5 +414,7 @@ ensureService(0 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket WHE
 foreach ($databaseAnalysisIds as $databaseAnalysisId) {
     ensureService(0 === (int) $connection->fetchOne('SELECT COUNT(*) FROM aianalysis WHERE id = ?', [$databaseAnalysisId]), 'Temporary AIAnalysis survived rollback.');
 }
+
+$connection->rollBack();
 
 echo "AIService tests: PASS\n";

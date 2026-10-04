@@ -163,7 +163,7 @@ $testLogger = new ClientTicketNewTestLogger();
 $ticketHistoryService = new TicketHistoryService($entityManager);
 $categoryRepository = $entityManager->getRepository(Category::class);
 $controller = new ClientTicketController(
-    new AIService($aiProvider, $entityManager),
+    new AIService($aiProvider, $entityManager, $categoryRepository),
     $testLogger,
     new TicketCategorySuggestionService($categoryRepository, $entityManager, $ticketHistoryService),
 );
@@ -184,6 +184,15 @@ try {
     $impressionCategoryName = 'Impression '.bin2hex(random_bytes(6));
     $impressionCategory = (new Category())->setName($impressionCategoryName);
     $aiProvider->suggestedCategory = $impressionCategoryName;
+    $networkCategories = $categoryRepository->findBy(['name' => 'Réseau']);
+
+    if ([] === $networkCategories) {
+        $networkCategories[] = (new Category())->setName('Réseau');
+        $entityManager->persist($networkCategories[0]);
+    }
+    ensureClientTicketNew(1 === count($networkCategories), 'The Wi-Fi classification test requires one existing Réseau category.');
+    $networkCategory = $networkCategories[0];
+
     $entityManager->persist($client);
     $entityManager->persist($technician);
     $entityManager->persist($impressionCategory);
@@ -354,6 +363,39 @@ try {
         'Automatic category assignment must be recorded as a system history event.',
     );
 
+    $aiProvider->suggestedCategory = 'Réseau';
+    $networkCategoryCountBefore = (int) $connection->fetchOne('SELECT COUNT(*) FROM category');
+    $wifiFormResponse = clientTicketNewRender(
+        $controller,
+        $ticketRepository,
+        $requestStack,
+        clientTicketNewRequest('GET', [], $session),
+        $entityManager,
+        $ticketHistoryService,
+    );
+    $wifiTitle = 'Wi-Fi connecté sans Internet';
+    $wifiResponse = clientTicketNewRender(
+        $controller,
+        $ticketRepository,
+        $requestStack,
+        clientTicketNewRequest('POST', [
+            'ticket' => [
+                'title' => $wifiTitle,
+                'description' => 'Mon ordinateur se connecte au Wi-Fi mais je n’ai pas Internet.',
+                '_token' => clientTicketNewTokenFrom((string) $wifiFormResponse->getContent()),
+            ],
+        ], $session),
+        $entityManager,
+        $ticketHistoryService,
+    );
+    ensureClientTicketNew(Response::HTTP_FOUND === $wifiResponse->getStatusCode(), 'Wi-Fi ticket creation must succeed.');
+    $wifiTicket = $ticketRepository->findOneBy(['title' => $wifiTitle]);
+    ensureClientTicketNew($wifiTicket instanceof Ticket, 'The Wi-Fi ticket must be persisted.');
+    ensureClientTicketNew($networkCategory->getId() === $wifiTicket->getCategory()?->getId(), 'An allowed Réseau category must be applied for the Wi-Fi report.');
+    ensureClientTicketNew(Ticket::PRIORITY_MEDIUM === $wifiTicket->getPriority(), 'AI categorization must not change ticket priority.');
+    ensureClientTicketNew($networkCategoryCountBefore === (int) $connection->fetchOne('SELECT COUNT(*) FROM category'), 'Wi-Fi categorization must not create a category.');
+    ensureClientTicketNew(2 === $aiProvider->callCount, 'The Wi-Fi analysis must use only one additional AI call.');
+
     $categoryCountBeforeNoMatch = (int) $connection->fetchOne('SELECT COUNT(*) FROM category');
     $aiProvider->suggestedCategory = 'Catégorie inexistante';
     $noMatchFormResponse = clientTicketNewRender(
@@ -380,7 +422,7 @@ try {
         $ticketHistoryService,
     );
     ensureClientTicketNew(Response::HTTP_FOUND === $noMatchResponse->getStatusCode(), 'A missing category match must not block client ticket creation.');
-    ensureClientTicketNew(2 === $aiProvider->callCount, 'Each successful client creation must make only one AI call.');
+    ensureClientTicketNew(3 === $aiProvider->callCount, 'Each successful client creation must make only one AI call.');
     $noMatchTicket = $ticketRepository->findOneBy(['title' => $noMatchTitle]);
     ensureClientTicketNew($noMatchTicket instanceof Ticket && null === $noMatchTicket->getCategory(), 'A missing category match must leave the ticket uncategorized.');
     ensureClientTicketNew($categoryCountBeforeNoMatch === (int) $connection->fetchOne('SELECT COUNT(*) FROM category'), 'A missing category match must not create a category.');

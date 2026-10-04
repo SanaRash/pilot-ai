@@ -7,6 +7,7 @@ namespace App\AI;
 use App\AI\Exception\AIValidationException;
 use App\Entity\AIAnalysis;
 use App\Entity\Ticket;
+use App\Repository\CategoryRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
 final readonly class AIService
@@ -21,6 +22,7 @@ final readonly class AIService
     public function __construct(
         private AIProviderInterface $provider,
         private EntityManagerInterface $entityManager,
+        private CategoryRepository $categoryRepository,
     ) {
     }
 
@@ -29,12 +31,24 @@ final readonly class AIService
         $title = $this->validateRequiredText($ticket->getTitle(), 'titre');
         $description = $this->validateRequiredText($ticket->getDescription(), 'description');
 
+        $allowedCategories = $this->categoryRepository->findAllNamesForAI();
         $result = $this->provider->analyze(new AIAnalysisInput(
             title: $title,
             description: $description,
+            allowedCategories: $allowedCategories,
         ));
 
         $this->validateResult($result);
+
+        if (null !== $result->suggestedCategory && !in_array($result->suggestedCategory, $allowedCategories, true)) {
+            $result = new AIAnalysisResult(
+                summary: $result->summary,
+                suggestedPriority: $result->suggestedPriority,
+                suggestedCategory: null,
+                keywords: $result->keywords,
+                suggestions: $result->suggestions,
+            );
+        }
 
         $analysis = (new AIAnalysis())
             ->setSummary($result->summary)
@@ -63,7 +77,12 @@ final readonly class AIService
     private function validateResult(AIAnalysisResult $result): void
     {
         $this->validateRequiredResultText($result->summary, self::MAX_SUMMARY_LENGTH, 'résumé');
-        $this->validateRequiredResultText($result->suggestedCategory, self::MAX_CATEGORY_LENGTH, 'catégorie suggérée');
+        if (
+            null !== $result->suggestedCategory
+            && mb_strlen($result->suggestedCategory, 'UTF-8') > self::MAX_CATEGORY_LENGTH
+        ) {
+            throw new AIValidationException('Le champ catégorie suggérée retourné par le provider IA est invalide.');
+        }
 
         if (null === $result->suggestedPriority || !in_array($result->suggestedPriority, Ticket::ALLOWED_PRIORITIES, true)) {
             throw new AIValidationException('La priorité suggérée par le provider IA est invalide.');

@@ -143,7 +143,11 @@ function emailE2EController(
         $entityManager,
         new TicketHistoryService($entityManager),
         $logger ?? new EmailE2ETestLogger(),
-        new AIService(new EmailE2EProvider($aiFailure, $suggestedCategory), $entityManager),
+        new AIService(
+            new EmailE2EProvider($aiFailure, $suggestedCategory),
+            $entityManager,
+            $entityManager->getRepository(Category::class),
+        ),
         new TicketCategorySuggestionService(
             $entityManager->getRepository(\App\Entity\Category::class),
             $entityManager,
@@ -239,6 +243,15 @@ try {
     $systemUser = emailE2ESystemUser($systemEmail);
     $supportEmailCategoryName = 'Support email '.bin2hex(random_bytes(6));
     $supportEmailCategory = (new Category())->setName($supportEmailCategoryName);
+    $networkCategories = $entityManager->getRepository(Category::class)->findBy(['name' => 'Réseau']);
+
+    if ([] === $networkCategories) {
+        $networkCategories[] = (new Category())->setName('Réseau');
+        $entityManager->persist($networkCategories[0]);
+    }
+    ensureEmailE2E(1 === count($networkCategories), 'The Wi-Fi E2E requires one existing Réseau category.');
+    $networkCategory = $networkCategories[0];
+
     $entityManager->persist($systemUser);
     $entityManager->persist($supportEmailCategory);
     $entityManager->flush();
@@ -296,6 +309,28 @@ try {
     emailE2EAssertCreatedHistory($entityManager, $noMatchTicket, $systemUser);
     ensureEmailE2E($categoryCountBeforeNoMatch === emailE2ECount($connection, 'category'), 'No category match must not create a Category.');
     ensureEmailE2E(2 === EmailE2EProvider::$callCount, 'Unmatched email analysis must call AI exactly once.');
+
+    $categoryCountBeforeWifi = emailE2ECount($connection, 'category');
+    $wifiResponse = emailE2EController(
+        $entityManager,
+        $userRepository,
+        $systemEmail,
+        logger: $logger,
+        suggestedCategory: 'Réseau',
+    )(emailE2ERequest(emailE2EPayload([
+        'subject' => 'Wi-Fi connecté sans Internet',
+        'content' => 'Mon ordinateur se connecte au Wi-Fi mais je n’ai pas Internet.',
+        'messageId' => '<wifi-category@example.test>',
+    ])));
+    $wifiBody = emailE2EDecode($wifiResponse, 'email Wi-Fi classification');
+    ensureEmailE2E(Response::HTTP_CREATED === $wifiResponse->getStatusCode(), 'Wi-Fi email ingestion must preserve HTTP 201.');
+    ensureEmailE2E('created' === ($wifiBody['data']['aiAnalysis'] ?? null), 'Wi-Fi email ingestion must preserve created AI status.');
+    $wifiTicket = $entityManager->find(Ticket::class, $wifiBody['data']['id'] ?? null);
+    ensureEmailE2E($wifiTicket instanceof Ticket, 'The Wi-Fi email ticket must be persisted.');
+    ensureEmailE2E($networkCategory->getId() === $wifiTicket->getCategory()?->getId(), 'The allowed Réseau category must be applied to the Wi-Fi email ticket.');
+    ensureEmailE2E(Ticket::PRIORITY_MEDIUM === $wifiTicket->getPriority(), 'AI categorization must not modify email priority.');
+    ensureEmailE2E($categoryCountBeforeWifi === emailE2ECount($connection, 'category'), 'Wi-Fi email analysis must not create a Category.');
+    ensureEmailE2E(3 === EmailE2EProvider::$callCount, 'Wi-Fi email analysis must make exactly one additional AI call.');
 
     $failureLogger = new EmailE2ETestLogger();
     $failureController = emailE2EController(

@@ -117,11 +117,13 @@ $provider = providerWithResponse(static function (string $method, string $url, a
 
     return new MockResponse(responseBody(validAnalysis()), ['http_code' => 200]);
 });
-$result = $provider->analyze(new AIAnalysisInput('Titre non fiable', 'Description non fiable'));
+$allowedCategories = ['Réseau', 'Support'];
+$result = $provider->analyze(new AIAnalysisInput('Titre non fiable', 'Description non fiable', $allowedCategories));
 $requestPayload = json_decode($capturedOptions['options']['body'], true, 512, JSON_THROW_ON_ERROR);
 
 ensure('Résumé du ticket' === $result->summary, 'Summary mapping failed.');
 ensure('HIGH' === $result->suggestedPriority, 'Priority mapping failed.');
+ensure('Support' === $result->suggestedCategory, 'An allowed category must be accepted unchanged.');
 ensure(['connexion', 'erreur'] === $result->keywords, 'Keywords mapping failed.');
 ensure('POST' === $capturedOptions['method'], 'Unexpected HTTP method.');
 ensure('https://openrouter.ai/api/v1/chat/completions' === $capturedOptions['url'], 'Unexpected endpoint.');
@@ -131,10 +133,13 @@ ensure('user' === $requestPayload['messages'][1]['role'], 'Ticket data must be i
 ensure(['type' => 'json_object'] === $requestPayload['response_format'], 'JSON-object mode must be requested for free-model compatibility.');
 ensure(str_contains($requestPayload['messages'][0]['content'], 'sans balises Markdown'), 'The prompt must prohibit Markdown fences.');
 ensure(str_contains($requestPayload['messages'][0]['content'], 'suggestedPriority'), 'The prompt must specify the analysis contract.');
+ensure(str_contains($requestPayload['messages'][0]['content'], 'exactement identique à un élément de allowedCategories'), 'The prompt must restrict suggestions to existing categories.');
+ensure(str_contains($requestPayload['messages'][0]['content'], 'Si allowedCategories est vide, suggestedCategory doit être null.'), 'An empty category list must explicitly forbid category suggestions.');
 ensure(!str_contains($requestPayload['messages'][0]['content'], 'Titre non fiable'), 'Untrusted title leaked into system instructions.');
 ensure([
     'title' => 'Titre non fiable',
     'description' => 'Description non fiable',
+    'allowedCategories' => $allowedCategories,
 ] === json_decode($requestPayload['messages'][1]['content'], true, 512, JSON_THROW_ON_ERROR), 'Untrusted ticket data is not encoded as expected.');
 ensure(false === $requestPayload['provider']['allow_fallbacks'], 'Provider fallback must be disabled.');
 ensure(true === $requestPayload['provider']['require_parameters'], 'Provider parameters must be required.');
@@ -167,10 +172,22 @@ $unicodeBoundaries = [
     ),
 ];
 $unicodeResult = providerWithResponse(new MockResponse(responseBody($unicodeBoundaries)))
-    ->analyze(new AIAnalysisInput('a', 'b'));
+    ->analyze(new AIAnalysisInput('a', 'b', [$unicodeBoundaries['suggestedCategory']]));
 ensure(str_repeat('é', 100) === $unicodeResult->suggestedCategory, 'Valid Unicode boundary was rejected.');
 ensure($unicodeBoundaries['keywords'] === $unicodeResult->keywords, 'Valid keyword boundary or order was modified.');
 ensure($unicodeBoundaries['suggestions'] === $unicodeResult->suggestions, 'Valid suggestion boundary or order was modified.');
+
+$analysisWithoutCategory = validAnalysis();
+$analysisWithoutCategory['suggestedCategory'] = null;
+$noCategoryResult = providerWithResponse(new MockResponse(responseBody($analysisWithoutCategory)))
+    ->analyze(new AIAnalysisInput('a', 'b', ['Support']));
+ensure(null === $noCategoryResult->suggestedCategory, 'A null category must be accepted when no category fits.');
+
+$analysisWithUnknownCategory = validAnalysis();
+$analysisWithUnknownCategory['suggestedCategory'] = 'Réseau et Connectivité';
+$unknownCategoryResult = providerWithResponse(new MockResponse(responseBody($analysisWithUnknownCategory)))
+    ->analyze(new AIAnalysisInput('a', 'b', ['Réseau']));
+ensure(null === $unknownCategoryResult->suggestedCategory, 'An out-of-list category must be discarded.');
 
 $singleKeyword = validAnalysis();
 $singleKeyword['keywords'] = ['unique'];
@@ -236,14 +253,13 @@ expectProviderException(
     'oversized category',
 );
 
-foreach ([null, '', " \t\n", "\u{00A0}\u{2003}"] as $invalidCategory) {
+foreach (['', " \t\n", "\u{00A0}\u{2003}"] as $invalidCategory) {
     $analysisWithInvalidCategory = validAnalysis();
     $analysisWithInvalidCategory['suggestedCategory'] = $invalidCategory;
 
-    expectProviderException(
-        fn () => providerWithResponse(new MockResponse(responseBody($analysisWithInvalidCategory)))->analyze(new AIAnalysisInput('a', 'b')),
-        'missing or blank category',
-    );
+    $blankCategoryResult = providerWithResponse(new MockResponse(responseBody($analysisWithInvalidCategory)))
+        ->analyze(new AIAnalysisInput('a', 'b', ['Support']));
+    ensure(null === $blankCategoryResult->suggestedCategory, 'A blank category suggestion must be treated as no category.');
 }
 
 $oversizedUnicodeSummary = validAnalysis();

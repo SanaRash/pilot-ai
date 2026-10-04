@@ -130,7 +130,11 @@ function emailTestAIService(
     ?\Closure $beforeResult = null,
 ): AIService
 {
-    return new AIService(new EmailTestAIProvider($failure, $result, $beforeResult), $entityManager);
+    return new AIService(
+        new EmailTestAIProvider($failure, $result, $beforeResult),
+        $entityManager,
+        $entityManager->getRepository(Category::class),
+    );
 }
 
 function emailTestCategorySuggestionService(EntityManagerInterface $entityManager): TicketCategorySuggestionService
@@ -491,6 +495,15 @@ try {
         ->setPassword('$2y$10$92IXUNpkjO0 composed test hash');
     $supportCategoryName = 'Support '.bin2hex(random_bytes(6));
     $supportCategory = (new Category())->setName($supportCategoryName);
+    $networkCategories = $creationEntityManager->getRepository(Category::class)->findBy(['name' => 'Réseau']);
+
+    if ([] === $networkCategories) {
+        $networkCategories[] = (new Category())->setName('Réseau');
+        $creationEntityManager->persist($networkCategories[0]);
+    }
+    ensureEmailEndpoint(1 === count($networkCategories), 'The Wi-Fi classification test requires one existing Réseau category.');
+    $networkCategory = $networkCategories[0];
+
     $creationEntityManager->persist($systemUser);
     $creationEntityManager->persist($supportCategory);
     $creationEntityManager->flush();
@@ -635,6 +648,42 @@ try {
         0 === (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket_history WHERE ticket_id = ? AND action = ?', [$noMatchTicket->getId(), 'CATEGORY_AUTO_ASSIGNED']),
         'No category assignment history should be created when there is no match.',
     );
+
+    $networkCategoryCountBefore = (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM category');
+    $wifiController = new EmailTicketController(
+        new EmailWebhookAuthenticator('test-secret'),
+        new EmailIngestionUserResolver($userRepository, $creationEmail),
+        $creationEntityManager,
+        new TicketHistoryService($creationEntityManager),
+        $creationLogger,
+        emailTestAIService(
+            $creationEntityManager,
+            result: new AIAnalysisResult('Résumé', 'HIGH', 'Réseau', ['wifi'], ['Vérifier la connexion Internet']),
+        ),
+        emailTestCategorySuggestionService($creationEntityManager),
+    );
+    $wifiResponse = $wifiController(Request::create(
+        '/api/tickets/email',
+        'POST',
+        server: [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_AUTHORIZATION' => 'Bearer test-secret',
+        ],
+        content: encodedPayload([
+            'sender' => 'Client@Example.test',
+            'subject' => 'Wi-Fi connecté sans Internet',
+            'content' => 'Mon ordinateur se connecte au Wi-Fi mais je n’ai pas Internet.',
+        ]),
+    ));
+    $wifiBody = decodedResponse($wifiResponse, 'email Wi-Fi classification');
+    ensureEmailEndpoint(Response::HTTP_CREATED === $wifiResponse->getStatusCode(), 'Wi-Fi email ingestion must preserve HTTP 201.');
+    ensureEmailEndpoint('created' === ($wifiBody['data']['aiAnalysis'] ?? null), 'Wi-Fi email ingestion must preserve AI analysis status.');
+    $wifiTicket = $creationEntityManager->find(Ticket::class, $wifiBody['data']['id'] ?? null);
+    ensureEmailEndpoint($wifiTicket instanceof Ticket, 'The Wi-Fi email ticket must be persisted.');
+    ensureEmailEndpoint($networkCategory->getId() === $wifiTicket->getCategory()?->getId(), 'The allowed Réseau category must be applied to the Wi-Fi email ticket.');
+    ensureEmailEndpoint('MEDIUM' === $wifiTicket->getPriority(), 'AI categorization must not change email ticket priority.');
+    ensureEmailEndpoint($networkCategoryCountBefore === (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM category'), 'Email categorization must not create a Category.');
+    ensureEmailEndpoint(3 === EmailTestAIProvider::$callCount, 'Email analysis must be called exactly once per successful ticket.');
 
     $history = $creationEntityManager->getRepository(TicketHistory::class)->findOneBy(['ticket' => $ticket]);
     ensureEmailEndpoint($history instanceof TicketHistory, 'Creation history is missing.');

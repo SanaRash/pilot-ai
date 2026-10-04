@@ -203,7 +203,7 @@ $aiProvider = new ClientE2EAIProvider();
 $ticketHistoryService = new TicketHistoryService($entityManager);
 $categoryRepository = $entityManager->getRepository(Category::class);
 $clientTicketController = new ClientTicketController(
-    new AIService($aiProvider, $entityManager),
+    new AIService($aiProvider, $entityManager, $categoryRepository),
     new NullLogger(),
     new TicketCategorySuggestionService($categoryRepository, $entityManager, $ticketHistoryService),
 );

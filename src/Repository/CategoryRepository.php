@@ -17,6 +17,24 @@ class CategoryRepository extends ServiceEntityRepository
     }
 
     /**
+     * @return list<string>
+     */
+    public function findAllNamesForAI(): array
+    {
+        $rows = $this->createQueryBuilder('category')
+            ->select('category.name AS name')
+            ->orderBy('category.name', 'ASC')
+            ->addOrderBy('category.id', 'ASC')
+            ->getQuery()
+            ->getArrayResult();
+
+        return array_map(
+            static fn (array $row): string => (string) $row['name'],
+            $rows,
+        );
+    }
+
+    /**
      * @return list<array{id: int, name: string, ticketCount: int}>
      */
     public function findAllWithTicketCountForAdmin(): array

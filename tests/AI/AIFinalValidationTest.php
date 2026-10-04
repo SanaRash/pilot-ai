@@ -263,15 +263,15 @@ try {
 
     $ticket = finalValidationTicket(
         $client,
-        'Panne authentification portail',
-        'Erreur session inaccessible depuis le navigateur.',
+        'Zorblaxq7ventilation',
+        'Vextorkryptonitebrumel',
         new DateTimeImmutable('2026-09-20 10:00:00'),
         $category,
         $technician,
     );
     $exactTitleCandidate = finalValidationTicket(
         $client,
-        'panne authentification portail',
+        'zorblaxq7ventilation',
         'Incident indépendant.',
         new DateTimeImmutable('2026-09-20 11:00:00'),
         $otherCategory,
@@ -317,20 +317,20 @@ try {
     $firstResult = finalValidationResult(
         'Résumé final de la panne authentification.',
         Ticket::PRIORITY_HIGH,
-        'Accès applicatif',
-        ['ancienmotunique', 'session'],
+        (string) $category->getName(),
+        ['ancienmotunique', 'vextorkryptonitebrumel'],
         ['Vérifier les journaux applicatifs.', 'Contacter le client pour confirmer le navigateur.'],
     );
     $firstProvider = new FinalValidationProvider($firstResult);
-    $aiService = new AIService($firstProvider, $entityManager);
+    $aiService = new AIService($firstProvider, $entityManager, $categoryRepository);
     $firstBefore = new DateTimeImmutable();
     $returnedFirstResult = $aiService->analyzeTicket($ticket);
     $firstAfter = new DateTimeImmutable();
 
     ensureAIFinal($firstResult === $returnedFirstResult, 'AIService must return the exact valid provider result.');
     ensureAIFinal(1 === $firstProvider->callCount, 'Valid provider must be called exactly once.');
-    ensureAIFinal('Panne authentification portail' === $firstProvider->receivedInput?->title, 'Provider must receive only the ticket title.');
-    ensureAIFinal('Erreur session inaccessible depuis le navigateur.' === $firstProvider->receivedInput?->description, 'Provider must receive only the ticket description.');
+    ensureAIFinal('Zorblaxq7ventilation' === $firstProvider->receivedInput?->title, 'Provider must receive only the ticket title.');
+    ensureAIFinal('Vextorkryptonitebrumel' === $firstProvider->receivedInput?->description, 'Provider must receive only the ticket description.');
 
     $entityManager->refresh($ticket);
     ensureAIFinal(1 === finalValidationCountAIAnalyses($aiAnalysisRepository, $ticket), 'A valid AI result must create exactly one AIAnalysis.');
@@ -358,12 +358,12 @@ try {
     $secondResult = finalValidationResult(
         'Deuxième résumé final différent.',
         Ticket::PRIORITY_URGENT,
-        'Infrastructure',
-        ['laserjetunique', 'portail'],
+        (string) $otherCategory->getName(),
+        ['laserjetunique', 'q7ventilationunique'],
         ['Escalader au support infrastructure.'],
     );
     $secondProvider = new FinalValidationProvider($secondResult);
-    $secondService = new AIService($secondProvider, $entityManager);
+    $secondService = new AIService($secondProvider, $entityManager, $categoryRepository);
     $returnedSecondResult = $secondService->analyzeTicket($ticket);
 
     ensureAIFinal($secondResult === $returnedSecondResult, 'Second valid analysis must return the provider result unchanged.');
@@ -385,7 +385,7 @@ try {
     ensureAIFinal($ticket === $allAnalyses[0]->getTicket() && $ticket === $allAnalyses[1]->getTicket(), 'Both analyses must remain linked to the same ticket.');
 
     $providerFailure = new FinalValidationProvider(exception: new AIProviderException('Provider unavailable for final validation.'));
-    $providerFailureService = new AIService($providerFailure, $entityManager);
+    $providerFailureService = new AIService($providerFailure, $entityManager, $categoryRepository);
     try {
         $providerFailureService->analyzeTicket($ticket);
         throw new RuntimeException('AIProviderException was not propagated.');
@@ -406,11 +406,11 @@ try {
     $invalidResultProvider = new FinalValidationProvider(finalValidationResult(
         'Résumé invalide car priorité incorrecte.',
         'CRITICAL',
-        'Accès applicatif',
+        (string) $category->getName(),
         ['mot-cle'],
         ['Suggestion valide'],
     ));
-    $invalidResultService = new AIService($invalidResultProvider, $entityManager);
+    $invalidResultService = new AIService($invalidResultProvider, $entityManager, $categoryRepository);
     try {
         $invalidResultService->analyzeTicket($ticket);
         throw new RuntimeException('AIValidationException was not thrown for an invalid provider result.');
@@ -430,12 +430,12 @@ try {
     $flushFailureProvider = new FinalValidationProvider(finalValidationResult(
         'Résumé avant échec de persistance.',
         Ticket::PRIORITY_LOW,
-        'Support',
+        (string) $category->getName(),
         ['persistance'],
         ['Suggestion avant échec'],
     ));
     $failingEntityManager = new FinalValidationFailingEntityManager($entityManager);
-    $flushFailureService = new AIService($flushFailureProvider, $failingEntityManager);
+    $flushFailureService = new AIService($flushFailureProvider, $failingEntityManager, $categoryRepository);
     try {
         $flushFailureService->analyzeTicket($ticket);
         throw new RuntimeException('Persistence failure was not propagated.');
@@ -458,7 +458,7 @@ try {
     $latestAnalysis = $aiAnalysisRepository->findLatestForTicket($ticket);
     ensureAIFinal($latestAnalysis instanceof AIAnalysis, 'Latest AIAnalysis must be available.');
     ensureAIFinal($secondResult->summary === $latestAnalysis->getSummary(), 'SimilarTicketFinder must be able to rely on the latest persisted AIAnalysis.');
-    ensureAIFinal(['laserjetunique', 'portail'] === $latestAnalysis->getKeywords(), 'Latest AIAnalysis keywords must be the second analysis keywords.');
+    ensureAIFinal(['laserjetunique', 'q7ventilationunique'] === $latestAnalysis->getKeywords(), 'Latest AIAnalysis keywords must be the second analysis keywords.');
 
     $ticketBeforeSimilarity = finalValidationTicketSnapshot(
         $ticket,
@@ -469,7 +469,14 @@ try {
     ensureAIFinal(count($similarTickets) <= 5, 'SimilarTicketFinder must return at most five tickets.');
     ensureAIFinal(!in_array($ticket, $similarTickets, true), 'SimilarTicketFinder must exclude the current ticket.');
     ensureAIFinal(in_array($exactTitleCandidate, $similarTickets, true), 'Exact title candidate must be returned.');
-    ensureAIFinal(in_array($latestKeywordCandidate, $similarTickets, true), 'Latest AI keyword candidate must be returned.');
+    ensureAIFinal(
+        in_array($latestKeywordCandidate, $similarTickets, true),
+        sprintf(
+            'Latest AI keyword candidate must be returned (candidate #%d; returned: %s).',
+            $latestKeywordCandidate->getId(),
+            implode(', ', array_map(static fn (Ticket $similarTicket): string => (string) $similarTicket->getId(), $similarTickets)),
+        ),
+    );
     ensureAIFinal(!in_array($oldKeywordCandidate, $similarTickets, true), 'Old AI keyword candidate must not be returned from the latest analysis keywords.');
     ensureAIFinal(in_array($categoryCandidate, $similarTickets, true), 'Same category candidate must be returned.');
     ensureAIFinal(!in_array($unrelatedCandidate, $similarTickets, true), 'Zero-score candidate must be excluded.');
@@ -494,7 +501,7 @@ try {
     );
     ensureAIFinal(str_contains($html, 'Deuxième résumé final différent.'), 'Technician detail must display the latest AI summary.');
     ensureAIFinal(str_contains($html, 'Urgente'), 'Technician detail must display the suggested priority as a readable label.');
-    ensureAIFinal(str_contains($html, 'Infrastructure'), 'Technician detail must display the suggested category.');
+    ensureAIFinal(str_contains($html, (string) $otherCategory->getName()), 'Technician detail must display the suggested category.');
     ensureAIFinal(str_contains($html, 'laserjetunique'), 'Technician detail must display AI keywords.');
     ensureAIFinal(str_contains($html, 'Escalader au support infrastructure.'), 'Technician detail must display AI suggestions.');
     ensureAIFinal(str_contains($html, 'recommandations générées par l’IA'), 'Technician detail must state that AI results are assistive recommendations.');
