@@ -7,6 +7,7 @@ use App\AI\AIAnalysisResult;
 use App\AI\AIProviderInterface;
 use App\AI\AIService;
 use App\AI\Exception\AIProviderException;
+use App\Controller\ClientAssistantController;
 use App\Controller\ClientTicketController;
 use App\Entity\AIAnalysis;
 use App\Entity\Category;
@@ -30,6 +31,7 @@ use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 require dirname(__DIR__, 2).'/vendor/autoload.php';
 
@@ -128,6 +130,44 @@ function clientTicketNewRequest(
     return $request;
 }
 
+function clientTicketNewAssistantDraftRequest(
+    Session $session,
+    string $csrfToken,
+    array $payload,
+): Request {
+    $request = Request::create(
+        '/client/assistant/ticket-draft',
+        'POST',
+        [],
+        [],
+        [],
+        [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json',
+            'HTTP_X_CSRF_TOKEN' => $csrfToken,
+        ],
+        json_encode($payload, JSON_THROW_ON_ERROR),
+    );
+    $request->attributes->set('_route', 'app_client_assistant_ticket_draft');
+    $request->setSession($session);
+
+    return $request;
+}
+
+function clientTicketNewAssistantDraft(
+    ClientAssistantController $controller,
+    RequestStack $requestStack,
+    Request $request,
+): Response {
+    $requestStack->push($request);
+
+    try {
+        return $controller->ticketDraft($request);
+    } finally {
+        $requestStack->pop();
+    }
+}
+
 function clientTicketNewRender(
     ClientTicketController $controller,
     TicketRepository $ticketRepository,
@@ -155,6 +195,7 @@ $entityManager = $container->get('doctrine')->getManager();
 /** @var Connection $connection */
 $connection = $entityManager->getConnection();
 $containerController = $container->get(ClientTicketController::class);
+$assistantController = $container->get(ClientAssistantController::class);
 $controllerContainerProperty = new ReflectionProperty(AbstractController::class, 'container');
 /** @var ContainerInterface $controllerContainer */
 $controllerContainer = $controllerContainerProperty->getValue($containerController);
@@ -172,6 +213,8 @@ $controller->setContainer($controllerContainer);
 $tokenStorage = $controllerContainer->get('security.token_storage');
 /** @var RequestStack $requestStack */
 $requestStack = $controllerContainer->get('request_stack');
+/** @var CsrfTokenManagerInterface $csrfTokenManager */
+$csrfTokenManager = $controllerContainer->get('security.csrf.token_manager');
 /** @var TicketRepository $ticketRepository */
 $ticketRepository = $entityManager->getRepository(Ticket::class);
 
@@ -222,6 +265,87 @@ try {
     ensureClientTicketNew(str_contains($getHtml, 'name="ticket[title]"'), 'The title field is missing.');
     ensureClientTicketNew(str_contains($getHtml, 'name="ticket[description]"'), 'The description field is missing.');
 
+    $csrfRequest = Request::create('/client', 'GET');
+    $csrfRequest->setSession($session);
+    $requestStack->push($csrfRequest);
+    try {
+        $assistantCsrfToken = $csrfTokenManager->getToken('client-assistant-message')->getValue();
+    } finally {
+        $requestStack->pop();
+    }
+
+    $draftTicketCountBeforePost = (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket');
+    $assistantDraftResponse = clientTicketNewAssistantDraft(
+        $assistantController,
+        $requestStack,
+        clientTicketNewAssistantDraftRequest($session, $assistantCsrfToken, [
+            'question' => 'Wi-Fi sans Internet ?',
+            'answer' => 'Vous pouvez créer une demande afin qu’un technicien puisse prendre le relais.',
+            'history' => [
+                ['role' => 'user', 'content' => 'Question précédente'],
+                ['role' => 'assistant', 'content' => 'Réponse précédente'],
+            ],
+        ]),
+    );
+    $assistantDraftJson = json_decode((string) $assistantDraftResponse->getContent(), true, 512, JSON_THROW_ON_ERROR);
+    ensureClientTicketNew(Response::HTTP_OK === $assistantDraftResponse->getStatusCode(), 'The assistant draft JSON route must return 200.');
+    ensureClientTicketNew('/client/ticket/new' === $assistantDraftJson['redirectUrl'], 'The assistant draft JSON route must point to the existing new ticket form.');
+    ensureClientTicketNew($session->has(ClientAssistantController::TICKET_DRAFT_SESSION_KEY), 'The assistant draft must be stored in the server session after POST.');
+    ensureClientTicketNew($draftTicketCountBeforePost === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket'), 'The assistant draft POST must not create a ticket.');
+
+    $draftFormResponse = clientTicketNewRender(
+        $controller,
+        $ticketRepository,
+        $requestStack,
+        clientTicketNewRequest('GET', [], $session),
+        $entityManager,
+        $ticketHistoryService,
+    );
+    $draftFormHtml = (string) $draftFormResponse->getContent();
+    ensureClientTicketNew(Response::HTTP_OK === $draftFormResponse->getStatusCode(), 'The ticket form must render after an assistant draft redirect.');
+    ensureClientTicketNew(str_contains($draftFormHtml, 'value="Wi-Fi sans Internet"'), 'The assistant draft title must prefill the ticket form.');
+    ensureClientTicketNew(str_contains($draftFormHtml, 'Wi-Fi sans Internet ?'), 'The assistant draft description must include the initial question.');
+    ensureClientTicketNew(str_contains($draftFormHtml, 'Vous pouvez créer une demande afin qu’un technicien puisse prendre le relais.'), 'The assistant draft description must include the assistant answer.');
+    ensureClientTicketNew(str_contains($draftFormHtml, 'Question précédente'), 'The assistant draft description must include the conversation history.');
+    ensureClientTicketNew(!$session->has(ClientAssistantController::TICKET_DRAFT_SESSION_KEY), 'The assistant draft must be consumed after the first form render.');
+
+    $draftSecondFormResponse = clientTicketNewRender(
+        $controller,
+        $ticketRepository,
+        $requestStack,
+        clientTicketNewRequest('GET', [], $session),
+        $entityManager,
+        $ticketHistoryService,
+    );
+    $draftSecondFormHtml = (string) $draftSecondFormResponse->getContent();
+    ensureClientTicketNew(!str_contains($draftSecondFormHtml, 'value="Wi-Fi sans Internet"'), 'The assistant draft must not prefill the form a second time.');
+
+    $draftTicketCountBefore = (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket');
+    $draftHistoryCountBefore = (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history');
+    $modifiedDraftResponse = clientTicketNewRender(
+        $controller,
+        $ticketRepository,
+        $requestStack,
+        clientTicketNewRequest('POST', [
+            'ticket' => [
+                'title' => 'Titre modifié par le client',
+                'description' => 'Description modifiée par le client avant validation.',
+                '_token' => clientTicketNewTokenFrom($draftFormHtml),
+            ],
+        ], $session),
+        $entityManager,
+        $ticketHistoryService,
+    );
+    ensureClientTicketNew(Response::HTTP_FOUND === $modifiedDraftResponse->getStatusCode(), 'A client-modified assistant draft submission must follow the normal success redirect.');
+    ensureClientTicketNew($draftTicketCountBefore + 1 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket'), 'The client-modified assistant draft must create one ticket only after form submission.');
+    ensureClientTicketNew($draftHistoryCountBefore + 2 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history'), 'The client-modified assistant draft must use the normal ticket creation and categorization history flow.');
+    ensureClientTicketNew(1 === $aiProvider->callCount, 'The client-modified assistant draft must use the existing single AI analysis call on final form submission.');
+    $modifiedDraftTicket = $ticketRepository->findOneBy(['title' => 'Titre modifié par le client']);
+    ensureClientTicketNew($modifiedDraftTicket instanceof Ticket, 'The client-modified assistant draft ticket must be persisted.');
+    ensureClientTicketNew('Description modifiée par le client avant validation.' === $modifiedDraftTicket->getDescription(), 'The client must be able to modify the assistant draft description before validation.');
+    ensureClientTicketNew(Ticket::STATUS_OPEN === $modifiedDraftTicket->getStatus(), 'The assistant draft final submission must preserve normal server-side status.');
+    ensureClientTicketNew('APP' === $modifiedDraftTicket->getSource(), 'The assistant draft final submission must preserve normal app source.');
+
     foreach (['ticket[status]', 'ticket[priority]', 'ticket[source]', 'ticket[createdAt]', 'ticket[updatedAt]', 'ticket[createdBy]', 'ticket[category]', 'ticket[assignedTo]', 'TicketHistory', 'AIAnalysis'] as $forbiddenField) {
         ensureClientTicketNew(!str_contains($getHtml, $forbiddenField), sprintf('A system field was exposed in the form: %s', $forbiddenField));
     }
@@ -245,6 +369,7 @@ try {
 
     $ticketCountBeforeInvalid = (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket');
     $historyCountBeforeInvalid = (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history');
+    $aiCallsBeforeInvalid = $aiProvider->callCount;
 
     $invalidScenarios = [
         'blank title' => [
@@ -305,10 +430,11 @@ try {
 
     ensureClientTicketNew($ticketCountBeforeInvalid === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket'), 'Invalid submissions must not create tickets.');
     ensureClientTicketNew($historyCountBeforeInvalid === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history'), 'Invalid submissions must not create history entries.');
-    ensureClientTicketNew(0 === $aiProvider->callCount, 'Invalid submissions must not trigger AI analysis.');
+    ensureClientTicketNew($aiCallsBeforeInvalid === $aiProvider->callCount, 'Invalid submissions must not trigger AI analysis.');
 
     $ticketCountBeforeSuccess = (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket');
     $historyCountBeforeSuccess = (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history');
+    $aiCallsBeforeSuccess = $aiProvider->callCount;
     $successResponse = clientTicketNewRender(
         $controller,
         $ticketRepository,
@@ -334,7 +460,7 @@ try {
     ensureClientTicketNew('/client/tickets' === $successResponse->headers->get('Location'), 'Successful submission must redirect to app_client_tickets.');
     ensureClientTicketNew($ticketCountBeforeSuccess + 1 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket'), 'Successful submission must create exactly one ticket.');
     ensureClientTicketNew($historyCountBeforeSuccess + 2 === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history'), 'Successful submission must create creation and automatic-category history entries.');
-    ensureClientTicketNew(1 === $aiProvider->callCount, 'A successful ticket creation must trigger exactly one AI analysis.');
+    ensureClientTicketNew($aiCallsBeforeSuccess + 1 === $aiProvider->callCount, 'A successful ticket creation must trigger exactly one AI analysis.');
 
     /** @var Ticket|null $createdTicket */
     $createdTicket = $ticketRepository->findOneBy(['title' => 'Impossible d’imprimer']);
@@ -365,6 +491,7 @@ try {
 
     $aiProvider->suggestedCategory = 'Réseau';
     $networkCategoryCountBefore = (int) $connection->fetchOne('SELECT COUNT(*) FROM category');
+    $aiCallsBeforeWifi = $aiProvider->callCount;
     $wifiFormResponse = clientTicketNewRender(
         $controller,
         $ticketRepository,
@@ -394,10 +521,11 @@ try {
     ensureClientTicketNew($networkCategory->getId() === $wifiTicket->getCategory()?->getId(), 'An allowed Réseau category must be applied for the Wi-Fi report.');
     ensureClientTicketNew(Ticket::PRIORITY_MEDIUM === $wifiTicket->getPriority(), 'AI categorization must not change ticket priority.');
     ensureClientTicketNew($networkCategoryCountBefore === (int) $connection->fetchOne('SELECT COUNT(*) FROM category'), 'Wi-Fi categorization must not create a category.');
-    ensureClientTicketNew(2 === $aiProvider->callCount, 'The Wi-Fi analysis must use only one additional AI call.');
+    ensureClientTicketNew($aiCallsBeforeWifi + 1 === $aiProvider->callCount, 'The Wi-Fi analysis must use only one additional AI call.');
 
     $categoryCountBeforeNoMatch = (int) $connection->fetchOne('SELECT COUNT(*) FROM category');
     $aiProvider->suggestedCategory = 'Catégorie inexistante';
+    $aiCallsBeforeNoMatch = $aiProvider->callCount;
     $noMatchFormResponse = clientTicketNewRender(
         $controller,
         $ticketRepository,
@@ -422,7 +550,7 @@ try {
         $ticketHistoryService,
     );
     ensureClientTicketNew(Response::HTTP_FOUND === $noMatchResponse->getStatusCode(), 'A missing category match must not block client ticket creation.');
-    ensureClientTicketNew(3 === $aiProvider->callCount, 'Each successful client creation must make only one AI call.');
+    ensureClientTicketNew($aiCallsBeforeNoMatch + 1 === $aiProvider->callCount, 'Each successful client creation must make only one AI call.');
     $noMatchTicket = $ticketRepository->findOneBy(['title' => $noMatchTitle]);
     ensureClientTicketNew($noMatchTicket instanceof Ticket && null === $noMatchTicket->getCategory(), 'A missing category match must leave the ticket uncategorized.');
     ensureClientTicketNew($categoryCountBeforeNoMatch === (int) $connection->fetchOne('SELECT COUNT(*) FROM category'), 'A missing category match must not create a category.');

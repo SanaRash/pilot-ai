@@ -95,11 +95,19 @@ class Ticket
     #[ORM\OneToMany(targetEntity: TicketHistory::class, mappedBy: 'ticket')]
     private Collection $ticketHistories;
 
+    /**
+     * @var Collection<int, TicketMessage>
+     */
+    #[ORM\OneToMany(targetEntity: TicketMessage::class, mappedBy: 'ticket', orphanRemoval: false)]
+    #[ORM\OrderBy(['createdAt' => 'ASC', 'id' => 'ASC'])]
+    private Collection $messages;
+
     public function __construct()
     {
         $this->interventions = new ArrayCollection();
         $this->aIAnalyses = new ArrayCollection();
         $this->ticketHistories = new ArrayCollection();
+        $this->messages = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -320,6 +328,27 @@ class Ticket
             if ($ticketHistory->getTicket() === $this) {
                 $ticketHistory->setTicket(null);
             }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, TicketMessage>
+     */
+    public function getMessages(): Collection
+    {
+        return $this->messages;
+    }
+
+    public function addMessage(TicketMessage $message): static
+    {
+        if ($message->getTicket() !== $this) {
+            throw new \InvalidArgumentException('A ticket can only contain its own messages.');
+        }
+
+        if (!$this->messages->contains($message)) {
+            $this->messages->add($message);
         }
 
         return $this;

@@ -28,6 +28,14 @@ services:
     App\AI\AIProviderInterface:
         alias: App\AI\OpenRouterProvider
 
+    App\AI\Assistant\OpenRouterAssistantProvider:
+        arguments:
+            $apiKey: '%env(string:OPENROUTER_API_KEY)%'
+            $model: '%env(string:OPENROUTER_MODEL)%'
+
+    App\AI\Assistant\AssistantProviderInterface:
+        alias: App\AI\Assistant\OpenRouterAssistantProvider
+
     App\Security\EmailWebhookAuthenticator:
         arguments:
             $secret: '%env(string:PILOTAI_EMAIL_WEBHOOK_SECRET)%'

@@ -503,5 +503,9 @@
         {% include '_flash_messages.html.twig' %}
 
         {% block body %}{% endblock %}
+
+        {% if app.user and is_granted('ROLE_CLIENT') and app.request.pathInfo starts with '/client' %}
+            {% include '_client_assistant_widget.html.twig' %}
+        {% endif %}
     </body>
 </html>

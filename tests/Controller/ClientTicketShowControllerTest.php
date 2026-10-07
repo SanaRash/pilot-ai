@@ -61,7 +61,10 @@ function clientTicketShowRequest(TokenStorageInterface $tokenStorage, ?User $use
 {
     $tokenStorage->setToken(null === $user ? null : new UsernamePasswordToken($user, 'main', $user->getRoles()));
 
-    return Request::create($path, 'GET');
+    $request = Request::create($path, 'GET');
+    $request->setSession(new Session(new MockArraySessionStorage()));
+
+    return $request;
 }
 
 (new Dotenv())->bootEnv(dirname(__DIR__, 2).'/.env');
@@ -161,7 +164,14 @@ try {
     $ticketCountBeforeRender = (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket');
     $historyCountBeforeRender = (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history');
     $interventionCountBeforeRender = (int) $connection->fetchOne('SELECT COUNT(*) FROM intervention');
-    $response = $controller->show((int) $ticket->getId(), $ticketRepository, $interventionRepository);
+    $renderRequest = Request::create('/client/tickets/'.$ticket->getId(), 'GET');
+    $renderRequest->setSession(new Session(new MockArraySessionStorage()));
+    $requestStack->push($renderRequest);
+    try {
+        $response = $controller->show((int) $ticket->getId(), $ticketRepository, $interventionRepository);
+    } finally {
+        $requestStack->pop();
+    }
     $html = $response->getContent();
 
     ensureClientTicketShow(Response::HTTP_OK === $response->getStatusCode(), 'The owner must be able to view the ticket detail.');
@@ -199,18 +209,26 @@ try {
         'Intervention',
         'AIAnalysis',
         'Modifier',
-        '<form',
         'Priorité',
         'Source',
     ] as $forbiddenContent) {
         ensureClientTicketShow(!str_contains($html, $forbiddenContent), sprintf('Forbidden content was rendered: %s', $forbiddenContent));
     }
+    ensureClientTicketShow(!str_contains($html, 'Conversation</h2>'), 'The ticket detail must not render the old conversation section.');
+    ensureClientTicketShow(str_contains($html, 'data-assistant-form'), 'The independent assistant widget must remain available.');
 
     ensureClientTicketShow($ticketCountBeforeRender === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket'), 'Rendering the detail must not create tickets.');
     ensureClientTicketShow($historyCountBeforeRender === (int) $connection->fetchOne('SELECT COUNT(*) FROM ticket_history'), 'Rendering the detail must not create history.');
     ensureClientTicketShow($interventionCountBeforeRender === (int) $connection->fetchOne('SELECT COUNT(*) FROM intervention'), 'Rendering the detail must not mutate interventions.');
 
-    $emptyUpdatesResponse = $controller->show((int) $ticketWithoutPublishedUpdates->getId(), $ticketRepository, $interventionRepository);
+    $emptyRequest = Request::create('/client/tickets/'.$ticketWithoutPublishedUpdates->getId(), 'GET');
+    $emptyRequest->setSession(new Session(new MockArraySessionStorage()));
+    $requestStack->push($emptyRequest);
+    try {
+        $emptyUpdatesResponse = $controller->show((int) $ticketWithoutPublishedUpdates->getId(), $ticketRepository, $interventionRepository);
+    } finally {
+        $requestStack->pop();
+    }
     ensureClientTicketShow(str_contains((string) $emptyUpdatesResponse->getContent(), 'Aucune mise à jour n’a encore été publiée.'), 'The empty published-update state is missing.');
 
     try {

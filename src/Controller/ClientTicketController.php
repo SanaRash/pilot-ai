@@ -76,11 +76,7 @@ final class ClientTicketController extends AbstractController
             throw $this->createNotFoundException();
         }
 
-        return $this->render('client_ticket/show.html.twig', [
-            'ticket' => $ticket,
-            'status_labels' => self::STATUS_LABELS,
-            'client_visible_interventions' => $interventionRepository->findClientVisibleForTicket($ticket),
-        ]);
+        return $this->renderTicketShow($ticket, $interventionRepository);
     }
 
     #[Route('/client/ticket/new', name: 'app_client_ticket_new', methods: ['GET', 'POST'])]
@@ -96,6 +92,20 @@ final class ClientTicketController extends AbstractController
         }
 
         $ticket = new Ticket();
+        if (!$request->isMethod('POST') && $request->hasSession()) {
+            $draft = $request->getSession()->get(ClientAssistantController::TICKET_DRAFT_SESSION_KEY);
+            $request->getSession()->remove(ClientAssistantController::TICKET_DRAFT_SESSION_KEY);
+
+            if (is_array($draft)) {
+                if (isset($draft['title']) && is_string($draft['title'])) {
+                    $ticket->setTitle($draft['title']);
+                }
+
+                if (isset($draft['description']) && is_string($draft['description'])) {
+                    $ticket->setDescription($draft['description']);
+                }
+            }
+        }
 
         $form = $this->createForm(TicketType::class, $ticket);
         $form->handleRequest($request);
@@ -161,6 +171,17 @@ final class ClientTicketController extends AbstractController
 
         return $this->render('client_ticket/new.html.twig', [
             'form' => $form,
+        ]);
+    }
+
+    private function renderTicketShow(
+        Ticket $ticket,
+        InterventionRepository $interventionRepository,
+    ): Response {
+        return $this->render('client_ticket/show.html.twig', [
+            'ticket' => $ticket,
+            'status_labels' => self::STATUS_LABELS,
+            'client_visible_interventions' => $interventionRepository->findClientVisibleForTicket($ticket),
         ]);
     }
 }
