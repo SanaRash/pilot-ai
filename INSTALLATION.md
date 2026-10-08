@@ -43,6 +43,7 @@ APP_SECRET=<secret-local-aleatoire>
 POSTGRES_PASSWORD=<mot-de-passe-local-url-encode>
 DATABASE_URL="postgresql://pilot_ai:<mot-de-passe-url-encode>@127.0.0.1:5432/pilot_ai?serverVersion=17&charset=utf8"
 OPENROUTER_API_KEY=
+OPENROUTER_MODEL=
 PILOTAI_EMAIL_WEBHOOK_SECRET=
 PILOTAI_EMAIL_SYSTEM_USER_EMAIL=email-ingestion@pilot-ai.internal
 ```
@@ -53,7 +54,8 @@ Si un mot de passe contient des caractères réservés dans une URL, l’encoder
 `DATABASE_URL`. `POSTGRES_PASSWORD` et les identifiants de `DATABASE_URL` doivent
 correspondre.
 
-`OPENROUTER_API_KEY` est nécessaire aux appels réels vers OpenRouter. Le secret
+`OPENROUTER_API_KEY` est nécessaire aux appels réels vers OpenRouter.
+`OPENROUTER_MODEL` désigne le modèle utilisé. Le secret
 `PILOTAI_EMAIL_WEBHOOK_SECRET` est requis pour activer l’authentification de l’API
 d’ingestion. `PILOTAI_EMAIL_SYSTEM_USER_EMAIL` désigne le compte système utilisé
 comme auteur des tickets e-mail ; l’adresse par défaut illustrative peut être
@@ -87,7 +89,9 @@ php bin/console doctrine:schema:validate
 ```
 
 Les migrations créent les tables, mais ne préremplissent pas de comptes de
-démonstration ni de catégories.
+démonstration. Les scripts `pilot_ai_demo_seed.sql` et `knowledge_articles_demo.sql`
+peuvent être exécutés localement pour préparer les catégories, tickets et articles
+de démonstration.
 
 ## Comptes utilisateurs
 
@@ -102,10 +106,8 @@ Choisir le rôle au prompt. Créer localement un compte `ROLE_CLIENT`, un
 Ne pas inscrire d’adresse personnelle, mot de passe ou credential de démonstration
 dans le dépôt.
 
-L’inscription publique crée uniquement un compte Client. Il n’existe pas de commande
-de création de catégorie déclarée dans le dépôt ; si la démonstration nécessite une
-modification de catégorie, préparer une catégorie dans l’environnement de
-démonstration par le mécanisme de gestion local convenu. Ce mécanisme est à confirmer.
+L’inscription publique crée uniquement un compte Client. Les catégories de
+démonstration attendues peuvent être chargées avec `pilot_ai_demo_seed.sql`.
 
 ## Compte système d’ingestion e-mail
 
@@ -122,10 +124,12 @@ tickets reçus par l’API. Ce compte n’est pas un compte de connexion de dém
 ## Lancer Symfony
 
 ```bash
-symfony server:start
+symfony server:start --listen-ip=0.0.0.0 --port=8000 --no-tls
 ```
 
-Ouvrir [http://127.0.0.1:8000](http://127.0.0.1:8000).
+Ouvrir [http://127.0.0.1:8000](http://127.0.0.1:8000). L’écoute sur `0.0.0.0`
+permet aussi au conteneur n8n local de joindre Symfony via
+`http://host.docker.internal:8000`.
 
 ## Tests et validations disponibles
 

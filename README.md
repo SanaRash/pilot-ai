@@ -1,12 +1,20 @@
 # Pilot AI
 
-Pilot AI est un MVP d’assistance aux équipes techniques et support. Il centralise
-les tickets, facilite leur traitement, propose une assistance IA et prépare
-l’automatisation de certaines entrées comme l’e-mail. Les interventions et les
-événements métier du ticket sont conservés dans son historique.
+Pilot AI est une application de gestion de tickets IT assistée par IA. Le MVP
+centralise les demandes de support, aide les techniciens à les qualifier et propose
+des recommandations sans remplacer la validation humaine.
 
-Pilot AI est un projet MVP et ne remplace pas une solution complète de gestion de
-support ou de parc telle que GLPI ou Jira.
+Pilot AI reste un MVP : il ne remplace pas une solution complète de support ou de
+parc comme GLPI, Jira Service Management ou un outil ITSM complet.
+
+## Rôles
+
+- **Client** : crée et suit ses demandes, consulte les interventions visibles et
+  utilise l’assistant flottant.
+- **Technicien** : consulte les tickets, prend en charge, modifie les informations
+  métier autorisées, ajoute des interventions et consulte l’IA.
+- **Administrateur** : consulte le tableau de bord, les utilisateurs, les catégories,
+  les statistiques et les tickets en lecture seule.
 
 ## Fonctionnalités MVP
 
@@ -14,200 +22,335 @@ support ou de parc telle que GLPI ou Jira.
 
 - inscription et connexion ;
 - tableau de bord ;
-- création d’un ticket ;
-- liste et détail limités aux tickets du client connecté.
+- création de ticket ;
+- liste et détail limités aux tickets du client connecté ;
+- consultation des interventions rendues visibles au client ;
+- assistant flottant avec base de connaissances ;
+- mémoire courte de conversation en `sessionStorage` ;
+- bouton “Créer une demande” depuis l’assistant ;
+- formulaire de ticket prérempli à partir du brouillon assistant.
 
 ### Technicien
 
-- tableau de bord, tickets ouverts et tickets assignés ;
+- tableau de bord ;
+- tickets ouverts et tickets assignés ;
 - prise en charge d’un ticket ;
-- modification du statut, de la priorité et de la catégorie selon les autorisations
-  du technicien assigné ;
+- modification du statut, de la priorité et de la catégorie selon les règles
+  existantes ;
 - ajout d’interventions ;
 - consultation de l’historique ;
-- consultation en lecture seule de l’analyse IA et des tickets similaires.
+- consultation en lecture seule des analyses IA, suggestions et tickets similaires ;
+- affichage de l’expéditeur e-mail réel sur les tickets créés par ingestion.
 
 ### Administrateur
 
 - tableau de bord ;
-- listes des utilisateurs et des catégories ;
-- statistiques MVP.
+- liste des utilisateurs en lecture seule ;
+- liste des catégories en lecture seule ;
+- statistiques MVP ;
+- détail ticket en lecture seule, incluant l’analyse IA et l’expéditeur e-mail si
+  le ticket provient de l’ingestion.
 
-L’espace Admin actuel est en lecture seule. Il ne constitue pas un CRUD Admin complet.
+### E-mail et n8n
 
-## Architecture technique
+- réception Gmail/IMAP via n8n ;
+- extraction `sender`, `subject`, `content` et `messageId` ;
+- appel HTTP vers `POST /api/tickets/email` ;
+- authentification Bearer ;
+- création de ticket `EMAIL` avec compte système ;
+- conservation de l’adresse réelle dans `requesterEmail` ;
+- déduplication par `messageId` ;
+- tentative d’analyse IA et catégorisation automatique non bloquantes.
 
-- Symfony 8 et PHP >= 8.4 ;
-- Doctrine ORM et PostgreSQL 17 ;
-- Twig pour les pages web ;
-- Docker / Docker Compose pour PostgreSQL en local ;
-- OpenRouter comme provider IA implémenté ;
-- n8n pour le workflow de réception e-mail IMAP ;
-- Git pour le versionnement.
+## Stack technique
 
-Les principales entités sont `User`, `Ticket`, `Category`, `Intervention`,
-`TicketHistory` et `AIAnalysis`. Le code est organisé autour des contrôleurs,
-formulaires, repositories et services Symfony, des composants IA, de la sécurité,
-des templates Twig, des migrations Doctrine, du workflow n8n et des tests.
+- Symfony 8 ;
+- PHP 8.4 ;
+- PostgreSQL 17 ;
+- Docker / Docker Compose ;
+- Doctrine ORM et Doctrine Migrations ;
+- Twig, HTML et JavaScript léger ;
+- n8n pour la réception e-mail IMAP ;
+- OpenRouter comme provider IA.
+
+Aucune dépendance lourde de type RAG, embeddings, base vectorielle ou WebSocket
+n’est utilisée dans le MVP.
+
+## Architecture courte
+
+```text
+Client Web
+    |
+Symfony
+ |      \
+ |       OpenRouter
+ |
+PostgreSQL
+ ^
+ |
+n8n <- IMAP/Gmail
+```
+
+Flux IA principaux :
+
+```text
+Ticket classique ou e-mail
+→ AIAnalysis
+→ catégorie suggérée parmi les catégories existantes
+→ catégorisation automatique uniquement si le ticket n’a pas déjà de catégorie
+```
+
+```text
+Assistant client
+→ KnowledgeSearchService
+→ OpenRouter
+→ réponse structurée / escalade vers création de demande
+```
+
+## Installation rapide
+
+La procédure détaillée est dans [INSTALLATION.md](./INSTALLATION.md). Les commandes
+principales sont :
+
+```bash
+composer install
+docker compose --env-file .env.local up -d
+php bin/console doctrine:migrations:migrate
+symfony server:start --listen-ip=0.0.0.0 --port=8000 --no-tls
+```
+
+Les secrets et paramètres locaux doivent rester dans `.env.local`, jamais dans Git.
+
+Variables locales typiques :
+
+```dotenv
+APP_SECRET=<secret-local-aleatoire>
+POSTGRES_PASSWORD=<mot-de-passe-local>
+DATABASE_URL="postgresql://pilot_ai:<mot-de-passe-url-encode>@127.0.0.1:5432/pilot_ai?serverVersion=17&charset=utf8"
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=
+PILOTAI_EMAIL_WEBHOOK_SECRET=
+PILOTAI_EMAIL_SYSTEM_USER_EMAIL=email-ingestion@pilot-ai.internal
+```
+
+`OPENROUTER_API_KEY` contient la clé privée du provider IA. `OPENROUTER_MODEL`
+désigne le modèle OpenRouter utilisé pour l’analyse ticket et l’assistant client.
+`PILOTAI_EMAIL_WEBHOOK_SECRET` protège l’API d’ingestion e-mail. Les vraies valeurs
+ne doivent jamais être versionnées.
+
+## Données de démonstration
+
+Deux scripts SQL de démonstration sont fournis :
+
+- `pilot_ai_demo_seed.sql` : catégories, tickets, historiques, interventions et
+  analyses IA de démonstration ;
+- `knowledge_articles_demo.sql` : articles de base de connaissances client-safe pour
+  l’assistant flottant.
+
+Catégories attendues pour la démo :
+
+- Impression ;
+- Logiciel ;
+- Matériel ;
+- Réseau ;
+- Téléphonie.
+
+Créer d’abord au moins un compte actif `ROLE_CLIENT`, un compte `ROLE_TECHNICIAN` et
+un compte `ROLE_ADMIN` avec :
+
+```bash
+php bin/console app:create-user
+```
+
+Puis exécuter les scripts localement avec l’outil PostgreSQL convenu. Aucun mot de
+passe ou compte de démonstration réel n’est fourni dans le dépôt.
+
+## Assistant client
+
+L’assistant client est un widget flottant visible uniquement côté Client. Il utilise
+la base de connaissances locale pour sélectionner au maximum trois articles actifs
+et sûrs pour le client, puis appelle OpenRouter.
+
+Comportement actuel :
+
+- historique court stocké côté navigateur en `sessionStorage` ;
+- maximum 6 messages conservés ;
+- pas de mémoire longue durée ;
+- pas de mémoire globale entre utilisateurs ;
+- réponse provider structurée avec `answer` et `needsTechnician` ;
+- si les connaissances sont insuffisantes, `needsTechnician` permet d’afficher
+  “Créer une demande” ;
+- le bouton ne crée pas de ticket automatiquement ;
+- il prépare un brouillon en session serveur et redirige vers le formulaire existant ;
+- le client peut modifier le titre et la description avant validation.
+
+Le chatbot ne crée jamais de ticket tout seul, ne modifie pas de ticket existant et
+ne persiste pas une conversation longue durée.
+
+## E-mail / n8n
+
+Le flux validé est :
+
+```text
+Gmail/IMAP
+→ n8n
+→ extraction sender / subject / content / messageId
+→ POST /api/tickets/email
+→ création ticket EMAIL
+→ AIAnalysis
+→ catégorisation automatique si possible
+```
+
+L’API attend un JSON strict :
+
+```json
+{
+  "sender": "client@example.com",
+  "subject": "Imprimante hors ligne",
+  "content": "Bonjour, ...",
+  "messageId": "<message-id@example.com>"
+}
+```
+
+Points importants :
+
+- authentification par `Authorization: Bearer <secret>` ;
+- le secret réel est configuré dans `.env.local` ou l’environnement ;
+- aucun credential n8n n’est exporté dans le workflow ;
+- `messageId` est obligatoire et possède une contrainte unique ;
+- première réception : `201` avec `duplicate: false` ;
+- rejeu du même `messageId` : `200` avec `duplicate: true` et le même ticket ;
+- aucun second ticket, historique ou appel IA n’est créé lors d’un doublon ;
+- `createdBy` reste le compte système d’ingestion ;
+- `requesterEmail` conserve l’adresse réelle de l’expéditeur.
+
+Créer ou vérifier le compte système avec :
+
+```bash
+php bin/console app:provision-email-system-user
+```
+
+Pour un n8n en Docker qui appelle Symfony en local, le workflow utilise :
+
+```text
+http://host.docker.internal:8000/api/tickets/email
+```
+
+Selon l’environnement Docker, ajouter le mapping d’hôte :
+
+```text
+--add-host=host.docker.internal:host-gateway
+```
+
+ou en Compose :
+
+```yaml
+extra_hosts:
+  - "host.docker.internal:host-gateway"
+```
+
+Voir [n8n/README.md](./n8n/README.md) pour l’import du workflow, les credentials IMAP
+et Header Auth, et les tests manuels. Ne jamais copier de Bearer secret dans le
+workflow exporté.
 
 ## Intelligence artificielle
 
-Le provider OpenRouter implémenté peut produire une analyse de ticket comprenant :
+L’analyse IA d’un ticket produit :
 
-- un résumé (`summary`) ;
-- une priorité suggérée (`suggestedPriority`) ;
-- une catégorie suggérée (`suggestedCategory`) ;
-- des mots-clés (`keywords`) ;
-- des suggestions (`suggestions`).
+- un résumé ;
+- une priorité suggérée ;
+- une catégorie suggérée parmi les catégories existantes ;
+- des mots-clés ;
+- des suggestions.
 
-Le technicien peut consulter l’analyse et les tickets similaires. Dans le flux
-actuellement implémenté, l’analyse est tentée après l’ingestion d’un ticket par l’API
-e-mail. Les recommandations restent assistives : elles ne changent automatiquement
-ni le statut, ni la priorité, ni la catégorie, ni l’assignation et ne ferment jamais
-un ticket. L’analyse IA dépend de la configuration OpenRouter locale et de la
-disponibilité du fournisseur.
+Règles métier :
 
-## E-mail et n8n — état réel
+- l’IA ne crée pas de catégorie ;
+- l’IA n’écrase pas une catégorie existante ;
+- l’IA ne change pas automatiquement le statut, la priorité ou l’assignation ;
+- l’IA ne ferme jamais un ticket ;
+- si OpenRouter est indisponible pendant l’ingestion e-mail, le ticket reste créé et
+  l’API indique `aiAnalysis: unavailable`.
 
-- **Workflow n8n IMAP :** réception d’e-mail et extraction des champs `sender`,
-  `subject` et `content` implémentées.
-- **API Pilot AI :** `POST /api/tickets/email` implémentée séparément. Elle utilise
-  un jeton d’authentification, valide le payload, crée un ticket `EMAIL` avec un compte système,
-  inscrit l’événement `TICKET_CREATED` et tente une analyse IA non bloquante.
-- **Raccord n8n → API : non implémenté actuellement.**
+## Sécurité
 
-> Le workflow n8n et l’API d’ingestion sont fonctionnels séparément. Le nœud HTTP
-> reliant n8n à l’API Pilot AI n’est pas encore implémenté dans le MVP actuel.
-
-Le workflow n’envoie donc pas actuellement les e-mails reçus à Pilot AI et ne crée
-pas de tickets automatiquement. Les détails IMAP et ses limites sont dans
-[n8n/README.md](./n8n/README.md).
-
-## Installation
-
-La procédure complète est dans [INSTALLATION.md](./INSTALLATION.md). En bref, elle
-nécessite PHP, Composer, Symfony CLI, Docker et Docker Compose ; configure les
-variables locales ; démarre PostgreSQL, applique les migrations et crée les comptes
-nécessaires.
-
-Les véritables valeurs de configuration sont locales : voir
-[Sécurité et configuration](#sécurité-et-configuration).
+- séparation des rôles `ROLE_CLIENT`, `ROLE_TECHNICIAN` et `ROLE_ADMIN` ;
+- ownership strict sur les tickets Client ;
+- actions web protégées par CSRF ;
+- API e-mail protégée par Bearer ;
+- secrets hors Git ;
+- `.env.local` ignoré ;
+- credentials n8n non exportés ;
+- aucun mot de passe ou token réel dans la documentation.
 
 ## Tests et validations
 
-Les tests du dépôt sont des scripts PHP exécutés directement ; PHPUnit n’est pas
-déclaré comme dépendance de ce projet. Les familles couvertes comprennent :
-
-- sécurité et matrice d’accès ;
-- parcours E2E Client, Technicien et Admin ;
-- ingestion e-mail/API ;
-- analyse IA ;
-- intégrité Doctrine ;
-- smoke tests UI et non-régression.
-
-Exemples de tests :
+Les tests du dépôt sont des scripts PHP autonomes :
 
 ```bash
+php tests/Controller/SecurityAccessMatrixTest.php
 php tests/Controller/ClientE2EFlowTest.php
 php tests/Controller/TechnicianE2EFlowTest.php
 php tests/Controller/AdminE2EFlowTest.php
-php tests/Controller/SecurityAccessMatrixTest.php
 php tests/Controller/EmailIngestionE2EFlowTest.php
 php tests/AI/AIFinalValidationTest.php
 php tests/Doctrine/DoctrineIntegrityTest.php
 php tests/Controller/UiSmokeTest.php
 ```
 
-Validations Symfony et Composer :
+Validations générales :
 
 ```bash
 php bin/console lint:container
 php bin/console lint:twig templates
 php bin/console doctrine:schema:validate
 composer validate --no-check-publish
+git diff --check
 ```
 
 ## Scénario de démonstration
 
-Créer au préalable, localement, un compte de chaque rôle avec
-[`app:create-user`](./INSTALLATION.md#comptes-utilisateurs). Aucun compte ni mot de
-passe de démonstration n’est fourni par le dépôt.
+Durée cible : 5 à 10 minutes.
 
-1. Se connecter comme Client, créer un ticket, puis montrer sa liste et son détail.
-2. Se connecter comme Technicien, montrer les tickets ouverts, prendre en charge le
-   ticket de démonstration et ouvrir son détail.
-3. Présenter les actions de statut, priorité et catégorie disponibles pour le
-   technicien assigné, puis ajouter une intervention. Pour l’action de catégorie,
-   une catégorie doit déjà exister dans la base.
-4. Montrer l’historique et, si une analyse existe pour le ticket, son affichage en
-   lecture seule ainsi que les tickets similaires. L’analyse IA n’est pas déclenchée
-   par la création d’un ticket Client ; ne montrer que le résultat d’un ticket ayant
-   déjà une analyse.
-5. Se connecter comme Admin et présenter le tableau de bord, les listes
-   utilisateurs/catégories et les statistiques, en précisant que ces pages sont en
-   lecture seule.
-6. Présenter séparément l’API d’ingestion e-mail et sa validation/tests. Ne pas
-   laisser entendre qu’un e-mail reçu par n8n crée un ticket : le raccord HTTP n’est
-   pas implémenté.
-7. Présenter le workflow IMAP comme réception/extraction autonome. Une clé OpenRouter
-   n’est pas nécessaire pour montrer les résultats IA déjà persistés ou les scénarios
-   simulés par les tests ; si aucun résultat n’est déjà disponible, ne pas dépendre
-   d’un appel externe réel et présenter l’IA comme une capacité configurée séparément.
-
-Les captures d’écran de soutenance sont à réaliser manuellement ; elles ne sont pas
-fournies ni requises dans ce dépôt.
+1. Se connecter comme Client.
+2. Créer un ticket depuis l’application.
+3. Montrer l’analyse/catégorisation IA si elle a été déclenchée ou préparée dans les
+   données de démonstration.
+4. Se connecter comme Technicien.
+5. Prendre en charge le ticket et ajouter une intervention.
+6. Revenir côté Client et montrer l’intervention visible.
+7. Ouvrir l’assistant flottant.
+8. Poser une question couverte par la base de connaissances, par exemple Wi-Fi ou
+   imprimante.
+9. Montrer l’escalade “Créer une demande” si `needsTechnician` vaut `true`.
+10. Ouvrir le formulaire prérempli, modifier si nécessaire, puis valider.
+11. Envoyer un e-mail réel via la boîte surveillée par n8n.
+12. Montrer le ticket `EMAIL` créé avec `requesterEmail`.
+13. Rejouer le même `messageId` et montrer `duplicate: true` sans second ticket.
+14. Si le temps le permet, présenter l’espace Admin en lecture seule.
 
 ## Limites du MVP
 
-1. Le raccord HTTP n8n → API d’ingestion n’est pas implémenté.
-2. Les pièces jointes des e-mails ne sont ni téléchargées ni traitées par le workflow.
-3. Il n’y a pas d’idempotence métier basée sur `messageId`.
-4. Le workflow n’ajoute pas de retry applicatif personnalisé.
-5. L’ingestion IMAP/API dépend de credentials et de secrets configurés localement.
-6. La disponibilité et les quotas OpenRouter ne sont pas garantis par l’application.
-7. L’IA est assistive uniquement ; elle ne prend pas de décision métier automatique.
-8. L’Admin ne dispose pas d’un CRUD complet.
-9. Aucun compte de démonstration permanent ou credential n’est versionné.
-10. Le MVP ne comprend pas de RAG ni d’embeddings.
-
-Ces limites décrivent le périmètre actuel ; elles ne sont pas des fonctionnalités
-implicitement disponibles.
+1. Les pièces jointes e-mail ne sont pas traitées.
+2. Le workflow ne met pas en place de retry applicatif personnalisé.
+3. L’ingestion IMAP/API dépend de credentials locaux.
+4. La disponibilité et les quotas OpenRouter ne sont pas garantis par l’application.
+5. L’IA est assistive et ne prend pas de décision métier autonome.
+6. L’Admin ne fournit pas de CRUD complet.
+7. Aucun compte de démonstration permanent ou credential réel n’est versionné.
+8. Le MVP ne comprend pas de RAG, embeddings ou base vectorielle.
 
 ## Pistes V2 — non implémentées
 
-- connecter le workflow n8n à l’API protégée ;
-- ajouter idempotence sur `messageId` ;
-- ajouter retry, monitoring et observabilité du flux e-mail ;
-- étudier le traitement des pièces jointes ;
-- ajouter un RAG ou une base de connaissances ;
-- étudier des intégrations GLPI, Jira ou GitHub Issues ;
-- compléter l’administration ;
-- ajouter des providers IA ;
-- améliorer l’observabilité et la gestion des quotas IA ;
-- préparer un environnement de déploiement et de démonstration.
-
-## Sécurité et configuration
-
-Les secrets et credentials réels doivent être définis dans `.env.local` ou dans
-l’environnement local/déployé. `.env.local` est ignoré par Git. Ne jamais commiter
-de secret, mot de passe, clé API ou credential réel.
-
-- `APP_SECRET` : secret Symfony, privé et aléatoire ;
-- `DATABASE_URL` : URL de connexion PostgreSQL propre à l’environnement ;
-- `OPENROUTER_API_KEY` : clé privée si OpenRouter est utilisé ;
-- `PILOTAI_EMAIL_WEBHOOK_SECRET` : secret privé d’authentification de l’API d’ingestion ;
-- `PILOTAI_EMAIL_SYSTEM_USER_EMAIL` : adresse configurée pour le compte système
-  d’ingestion, non secrète en elle-même ;
-- `POSTGRES_PASSWORD` : mot de passe local de PostgreSQL Docker.
-
-La configuration illustrative versionnée n’est pas un jeu d’identifiants utilisable.
-La documentation détaillée de configuration est dans
-[INSTALLATION.md](./INSTALLATION.md).
+- traitement des pièces jointes e-mail ;
+- retry, monitoring et observabilité avancée du flux e-mail ;
+- administration CRUD complète ;
+- providers IA alternatifs ;
+- RAG ou recherche sémantique avancée ;
+- intégrations GLPI, Jira ou GitHub Issues ;
+- environnement de déploiement de production.
 
 ## Roadmap
 
 Consulter [ROADMAP/README.md](./ROADMAP/README.md) et les fichiers de phase pour
-l’état versionné des tâches. La Phase 09 y reste non cochée et certains items de la
-Phase 07 décrivent une création de tickets/appel IA alors que le workflow n8n actuel
-ne contient pas de raccord HTTP. Cet écart est signalé, non corrigé ici ; les fichiers
-de roadmap restent inchangés et leur arbitrage/clôture suit une validation distincte.
+l’état versionné des tâches.

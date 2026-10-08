@@ -15,22 +15,21 @@
 - [x] [Phase 04 — Interventions](phase-04-interventions.md)
 - [x] [Phase 05 — Historique](phase-05-historique.md)
 - [x] [Phase 06 — Intelligence artificielle](phase-06-ia.md)
-- [ ] [Phase 07 — n8n et ingestion e-mail](phase-07-n8n.md)
+- [x] [Phase 07 — n8n et ingestion e-mail](phase-07-n8n.md)
 - [x] [Phase 08 — Dashboards et UI](phase-08-dashboard-ui.md)
 - [x] [Phase 09 — Tests, sécurité et livraison](phase-09-tests-livraison.md)
 
 ## État final du MVP
 
 Le MVP Pilot AI est fonctionnel et validé sur les parcours Client, Technicien, Admin,
-IA, sécurité, intégrité Doctrine et UI. La Phase 07 reste partielle : le workflow n8n
-reçoit et extrait les e-mails et l’API d’ingestion existe, mais le raccord HTTP n8n ->
-API reste à implémenter.
+IA, sécurité, intégrité Doctrine, UI et ingestion e-mail. La Phase 07 est validée :
+le workflow n8n reçoit les e-mails IMAP, extrait les champs attendus et appelle
+l’API Pilot AI pour créer un ticket dédupliqué par `messageId`.
 
-Les Phases 01 à 06 et 08 à 09 sont terminées. La Phase 07 ne doit pas être considérée
-comme un flux e-mail -> ticket automatique complet.
+Les Phases 01 à 09 sont terminées pour le périmètre MVP.
 
 ## État de la roadmap
 
-La mise en cohérence de la roadmap n’ajoute pas de fonctionnalité et ne marque pas le
-raccord n8n -> API comme réalisé. Les évolutions restantes de cette intégration sont
-à traiter séparément.
+La mise en cohérence de la roadmap n’ajoute pas de fonctionnalité. Elle documente
+l’état validé du MVP après le raccord n8n -> API, l’idempotence `messageId`, le suivi
+`requesterEmail`, l’analyse IA et la catégorisation automatique non bloquante.

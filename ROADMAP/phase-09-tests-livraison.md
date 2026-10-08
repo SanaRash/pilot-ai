@@ -8,7 +8,7 @@
 - [x] interventions
 - [x] historique
 - [x] IA
-- [x] tests séparés du workflow n8n et de l'API (sans E2E n8n -> API)
+- [x] tests workflow n8n, API e-mail et E2E n8n -> API
 
 ## Sécurité
 - [x] CSRF
@@ -29,5 +29,6 @@
 ## Phase terminée
 
 Les tests, contrôles de sécurité et livrables documentaires de cette phase ont été
-validés. Les captures ne sont pas requises dans le dépôt. La Phase 07 reste partielle :
-le raccord HTTP n8n -> API n'est pas implémenté.
+validés. Les captures ne sont pas requises dans le dépôt. Le flux e-mail MVP est
+validé avec réception IMAP n8n, appel HTTP vers l’API, déduplication `messageId`,
+`requesterEmail`, analyse IA et catégorisation automatique non bloquante.
