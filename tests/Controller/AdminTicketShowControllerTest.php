@@ -128,6 +128,7 @@ try {
         ->setCreatedAt($createdAt)
         ->setUpdatedAt($updatedAt)
         ->setCreatedBy($client)
+        ->setRequesterEmail('<script>alert("requester")</script>@example.test')
         ->setAssignedTo($technician)
         ->setCategory($category);
     $entityManager->persist($ticket);
@@ -189,6 +190,8 @@ try {
         'Ticket &lt;script&gt;alert(&quot;ticket&quot;)&lt;/script&gt;',
         'Description &lt;script&gt;alert(&quot;ticket&quot;)&lt;/script&gt;',
         '&lt;script&gt;alert(&quot;client&quot;)&lt;/script&gt; Client',
+        'Expéditeur e-mail',
+        '&lt;script&gt;alert(&quot;requester&quot;)&lt;/script&gt;@example.test',
         'En cours',
         'Haute',
         '&lt;script&gt;alert(&quot;category&quot;)&lt;/script&gt;',
@@ -216,6 +219,7 @@ try {
         '<script>alert("technician")</script>',
         '<script>alert("category")</script>',
         '<script>alert("suggested-category")</script>',
+        '<script>alert("requester")</script>@example.test',
     ] as $rawHostileValue) {
         ensureAdminTicketShow(!str_contains($html, $rawHostileValue), 'User-controlled content must be HTML-escaped.');
     }
@@ -243,6 +247,7 @@ try {
     foreach (['Non assigné', 'Non catégorisé', 'Non modifié'] as $fallback) {
         ensureAdminTicketShow(str_contains($unassignedHtml, $fallback), sprintf('Admin ticket detail must display fallback "%s".', $fallback));
     }
+    ensureAdminTicketShow(!str_contains($unassignedHtml, 'Expéditeur e-mail'), 'App tickets must not display requester email in admin detail.');
     ensureAdminTicketShow($beforeGet === adminTicketShowCounts($connection), 'GET admin ticket details must not mutate persisted data.');
 
     $missingResponse = adminTicketShowResponse($kernel, $session, '/admin/tickets/2147483000');

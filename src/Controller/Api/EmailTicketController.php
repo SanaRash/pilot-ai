@@ -14,6 +14,7 @@ use App\Service\TicketHistoryService;
 use App\Service\TicketCategorySuggestionException;
 use App\Service\TicketCategorySuggestionService;
 use Doctrine\DBAL\Exception as DBALException;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\Exception\ORMException;
 use Doctrine\ORM\EntityManagerInterface;
 use JsonException;
@@ -118,6 +119,17 @@ final class EmailTicketController extends AbstractController
             return $this->validationError($errors);
         }
 
+        $ticketRepository = $this->entityManager->getRepository(Ticket::class);
+        $existingTicket = $ticketRepository->findOneBy(['messageId' => $payload['messageId']]);
+
+        if ($existingTicket instanceof Ticket) {
+            return $this->duplicateResponse(
+                (int) $existingTicket->getId(),
+                (string) $existingTicket->getSource(),
+                (string) $existingTicket->getStatus(),
+            );
+        }
+
         try {
             $systemUser = $this->userResolver->resolve();
         } catch (EmailIngestionUserResolutionException $exception) {
@@ -142,6 +154,8 @@ final class EmailTicketController extends AbstractController
                 ->setTitle($payload['subject'])
                 ->setDescription($payload['content'])
                 ->setSource('EMAIL')
+                ->setMessageId($payload['messageId'])
+                ->setRequesterEmail($payload['sender'])
                 ->setStatus(Ticket::STATUS_OPEN)
                 ->setPriority(Ticket::PRIORITY_MEDIUM)
                 ->setCategory(null)
@@ -156,6 +170,29 @@ final class EmailTicketController extends AbstractController
         } catch (\Throwable $exception) {
             if ($connection->isTransactionActive()) {
                 $connection->rollBack();
+            }
+
+            if ($this->containsUniqueConstraintViolation($exception)) {
+                try {
+                    $existingMessage = $connection->fetchAssociative(
+                        'SELECT id, source, status FROM ticket WHERE message_id = ?',
+                        [$payload['messageId']],
+                    );
+
+                    if (false !== $existingMessage) {
+                        return $this->duplicateResponse(
+                            (int) $existingMessage['id'],
+                            (string) $existingMessage['source'],
+                            (string) $existingMessage['status'],
+                        );
+                    }
+                } catch (DBALException $lookupException) {
+                    $this->logger->error('La résolution du doublon de message e-mail a échoué.', [
+                        'event' => 'email_ingestion_duplicate_resolution_failed',
+                        'step' => 'duplicate_resolution',
+                        'exception' => $lookupException::class,
+                    ]);
+                }
             }
 
             $this->logger->error('La persistance du ticket e-mail a échoué.', [
@@ -181,8 +218,8 @@ final class EmailTicketController extends AbstractController
             $aiAnalysisStatus = 'unavailable';
             $this->logger->warning('L’analyse IA du ticket e-mail est indisponible.', [
                 'event' => 'email_ingestion_ai_unavailable',
-                'step' => 'ai_analysis',
-                'exception' => $exception::class,
+                'step' => 'analyze',
+                'exceptionClass' => $exception::class,
                 'providerStatus' => $exception->getCode() ?: null,
                 'ticketId' => $ticket->getId(),
             ]);
@@ -190,8 +227,9 @@ final class EmailTicketController extends AbstractController
             $aiAnalysisStatus = 'unavailable';
             $this->logger->warning('La persistance de l’analyse IA du ticket e-mail a échoué.', [
                 'event' => 'email_ingestion_ai_persistence_failed',
-                'step' => 'ai_analysis_persistence',
-                'exception' => $exception::class,
+                'step' => 'persist',
+                'exceptionClass' => $exception::class,
+                'providerStatus' => null,
                 'ticketId' => $ticket->getId(),
             ]);
         }
@@ -202,8 +240,9 @@ final class EmailTicketController extends AbstractController
             } catch (TicketCategorySuggestionException $exception) {
                 $this->logger->warning('La catégorisation automatique du ticket e-mail a échoué.', [
                     'event' => 'email_ingestion_category_suggestion_failed',
-                    'step' => 'category_suggestion',
-                    'exception' => $exception::class,
+                    'step' => 'categorize',
+                    'exceptionClass' => $exception::class,
+                    'providerStatus' => null,
                     'ticketId' => $ticket->getId(),
                 ]);
             }
@@ -216,6 +255,7 @@ final class EmailTicketController extends AbstractController
                 'status' => Ticket::STATUS_OPEN,
                 'aiAnalysis' => $aiAnalysisStatus,
             ],
+            'duplicate' => false,
         ], Response::HTTP_CREATED);
     }
 
@@ -236,10 +276,7 @@ final class EmailTicketController extends AbstractController
         $this->validateRequiredString($payload, 'sender', 180, $errors);
         $this->validateRequiredString($payload, 'subject', 255, $errors);
         $this->validateRequiredString($payload, 'content', 50_000, $errors);
-
-        if (array_key_exists('messageId', $payload)) {
-            $this->validateStringValue($payload['messageId'], 'messageId', 255, $errors);
-        }
+        $this->validateRequiredString($payload, 'messageId', 255, $errors);
 
         if (!isset($errors['sender']) && false === filter_var($payload['sender'], FILTER_VALIDATE_EMAIL)) {
             $errors['sender'] = 'Ce champ doit contenir une adresse e-mail valide.';
@@ -328,5 +365,28 @@ final class EmailTicketController extends AbstractController
         $response->headers->set('WWW-Authenticate', 'Bearer realm="Pilot AI email ingestion"');
 
         return $response;
+    }
+
+    private function duplicateResponse(int $ticketId, string $source, string $status): JsonResponse
+    {
+        return new JsonResponse([
+            'data' => [
+                'id' => $ticketId,
+                'source' => $source,
+                'status' => $status,
+            ],
+            'duplicate' => true,
+        ], Response::HTTP_OK);
+    }
+
+    private function containsUniqueConstraintViolation(\Throwable $exception): bool
+    {
+        for ($cause = $exception; null !== $cause; $cause = $cause->getPrevious()) {
+            if ($cause instanceof UniqueConstraintViolationException) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

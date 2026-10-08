@@ -167,6 +167,7 @@ try {
         'Description assignée',
         Ticket::PRIORITY_URGENT,
     );
+    $assignedTicket->setSource('EMAIL')->setRequesterEmail('<script>alert("requester")</script>@example.test');
     $otherAssignedTicket = technicianTicketShowTicket(
         $client,
         'Ticket autre technicien',
@@ -245,6 +246,7 @@ try {
     ensureTechnicianTicketShow(str_contains($freeHtml, 'Non catégorisé'), 'Missing category must be displayed.');
     ensureTechnicianTicketShow(str_contains($freeHtml, 'Non assigné'), 'Unassigned ticket must display Non assigné.');
     ensureTechnicianTicketShow(!str_contains($freeHtml, '>APP<'), 'Source must not be displayed.');
+    ensureTechnicianTicketShow(!str_contains($freeHtml, 'Expéditeur e-mail'), 'App tickets must not display a requester email.');
 
     $assignedHtml = renderTechnicianTicketShow($controller, $tokenStorage, $technician, $assignedTicket, $categoryRepository, $interventionRepository, $ticketHistoryRepository, $aiAnalysisRepository);
     ensureTechnicianTicketShow(!str_contains($assignedHtml, "M'assigner ce ticket"), 'Assignment button must be hidden for the assigned technician.');
@@ -257,6 +259,9 @@ try {
     ensureTechnicianTicketShow(str_contains($assignedHtml, 'Urgente'), 'URGENT priority must be translated.');
     ensureTechnicianTicketShow(str_contains($assignedHtml, '&lt;script&gt;alert(&quot;category&quot;)&lt;/script&gt;'), 'Category must be escaped.');
     ensureTechnicianTicketShow(str_contains($assignedHtml, '&lt;script&gt;alert(&quot;client&quot;)&lt;/script&gt; Client'), 'Client identity must be escaped.');
+    ensureTechnicianTicketShow(str_contains($assignedHtml, 'Expéditeur e-mail'), 'Email requester label must be visible for email tickets.');
+    ensureTechnicianTicketShow(str_contains($assignedHtml, '&lt;script&gt;alert(&quot;requester&quot;)&lt;/script&gt;@example.test'), 'Email requester must be escaped.');
+    ensureTechnicianTicketShow(!str_contains($assignedHtml, '<script>alert("requester")</script>@example.test'), 'Raw email requester must not be rendered.');
     ensureTechnicianTicketShow(str_contains($assignedHtml, 'class="role-navigation__link" href="/technician">Dashboard</a>'), 'Global technician dashboard link is missing.');
     ensureTechnicianTicketShow(str_contains($assignedHtml, 'class="role-navigation__link" href="/technician/tickets"'), 'Global open tickets link is missing.');
     ensureTechnicianTicketShow(str_contains($assignedHtml, 'class="role-navigation__link" href="/technician/tickets/assigned"'), 'Global assigned tickets link is missing.');

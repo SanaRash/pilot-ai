@@ -22,17 +22,6 @@
       "name": "Réception e-mail IMAP"
     },
     {
-      "parameters": {},
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [
-        1040,
-        0
-      ],
-      "id": "0fbda262-c392-487a-a084-7e912037d53c",
-      "name": "Contrôle réception uniquement"
-    },
-    {
       "parameters": {
         "includeOtherFields": true,
         "include": "except",
@@ -59,6 +48,61 @@
       ],
       "id": "ad9fcb8a-7fb3-4165-b7c3-37f9d7ecf0f5",
       "name": "Extraire contenu"
+    },
+    {
+      "parameters": {
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "message-id-normalized",
+              "name": "messageId",
+              "type": "string",
+              "value": "={{ (() => { const value = $json.metadata?.['message-id']; if (typeof value !== 'string') return null; const normalized = value.trim(); return normalized === '' ? null : normalized; })() }}"
+            }
+          ]
+        },
+        "options": {
+          "dotNotation": true
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "a47df11b-c44c-4e9b-a53e-c166337c77ec",
+      "name": "Extraire Message-ID"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/tickets/email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { sender: $json.sender, subject: $json.subject, content: $json.content, messageId: $json.messageId } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        0
+      ],
+      "id": "9ff0ca11-9fd5-4f4e-a20f-b71517b5b3a2",
+      "name": "Créer ticket Pilot AI"
     },
     {
       "parameters": {
@@ -152,7 +196,18 @@
       "main": [
         [
           {
-            "node": "Contrôle réception uniquement",
+            "node": "Extraire Message-ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraire Message-ID": {
+      "main": [
+        [
+          {
+            "node": "Créer ticket Pilot AI",
             "type": "main",
             "index": 0
           }

@@ -174,11 +174,13 @@ function emailE2EAssertTicketDefaults(
     string $title = 'Connexion impossible',
     string $description = 'La connexion au service échoue.',
     ?Category $expectedCategory = null,
+    string $requesterEmail = 'client@example.test',
 ): void
 {
     ensureEmailE2E($title === $ticket->getTitle(), 'Email subject must map to ticket title.');
     ensureEmailE2E($description === $ticket->getDescription(), 'Email content must map to ticket description.');
     ensureEmailE2E('EMAIL' === $ticket->getSource(), 'Ticket source must be EMAIL.');
+    ensureEmailE2E($requesterEmail === $ticket->getRequesterEmail(), 'Email sender must be persisted as requesterEmail.');
     ensureEmailE2E(Ticket::STATUS_OPEN === $ticket->getStatus(), 'Ticket status must be OPEN.');
     ensureEmailE2E(Ticket::PRIORITY_MEDIUM === $ticket->getPriority(), 'Ticket priority must be MEDIUM.');
     ensureEmailE2E($expectedCategory?->getId() === $ticket->getCategory()?->getId(), 'Unexpected ticket category.');
@@ -271,9 +273,11 @@ try {
     ensureEmailE2E('EMAIL' === ($successBody['data']['source'] ?? null), 'Response source must be EMAIL.');
     ensureEmailE2E(Ticket::STATUS_OPEN === ($successBody['data']['status'] ?? null), 'Response status must be OPEN.');
     ensureEmailE2E('created' === ($successBody['data']['aiAnalysis'] ?? null), 'Successful AI analysis must be reported as created.');
+    ensureEmailE2E(false === ($successBody['duplicate'] ?? null), 'A new email ticket must report duplicate false.');
 
     $ticket = $entityManager->find(Ticket::class, $successBody['data']['id'] ?? null);
     ensureEmailE2E($ticket instanceof Ticket, 'Created email ticket must be persisted.');
+    ensureEmailE2E('<message@example.test>' === $ticket->getMessageId(), 'Email Message-ID must be persisted on the ticket.');
     emailE2EAssertTicketDefaults($ticket, $systemUser, expectedCategory: $supportEmailCategory);
     emailE2EAssertCreatedHistory($entityManager, $ticket, $systemUser, $supportEmailCategory);
     ensureEmailE2E(EmailE2EProvider::$lastInput instanceof AIAnalysisInput, 'AI provider must be called with simulated provider.');
@@ -358,11 +362,23 @@ try {
     ensureEmailE2E('email_ingestion_ai_unavailable' === ($lastLog['context']['event'] ?? null), 'AI provider failure event must be logged.');
 
     $duplicateMessageId = '<duplicate-message@example.test>';
+    $countsBeforeDuplicate = [
+        'ticket' => emailE2ECount($connection, 'ticket'),
+        'analysis' => emailE2ECount($connection, 'aianalysis'),
+        'history' => emailE2ECount($connection, 'ticket_history'),
+    ];
+    $aiCallsBeforeDuplicate = EmailE2EProvider::$callCount;
     $duplicateFirst = $controller(emailE2ERequest(emailE2EPayload([
         'subject' => 'Doublon un',
         'content' => 'Premier ticket avec même messageId.',
         'messageId' => $duplicateMessageId,
     ])));
+    $countsAfterFirstDuplicate = [
+        'ticket' => emailE2ECount($connection, 'ticket'),
+        'analysis' => emailE2ECount($connection, 'aianalysis'),
+        'history' => emailE2ECount($connection, 'ticket_history'),
+    ];
+    $aiCallsAfterFirstDuplicate = EmailE2EProvider::$callCount;
     $duplicateSecond = $controller(emailE2ERequest(emailE2EPayload([
         'subject' => 'Doublon deux',
         'content' => 'Second ticket avec même messageId.',
@@ -371,8 +387,23 @@ try {
     $duplicateFirstBody = emailE2EDecode($duplicateFirst, 'first duplicate messageId');
     $duplicateSecondBody = emailE2EDecode($duplicateSecond, 'second duplicate messageId');
     ensureEmailE2E(Response::HTTP_CREATED === $duplicateFirst->getStatusCode(), 'First duplicate messageId payload must return 201.');
-    ensureEmailE2E(Response::HTTP_CREATED === $duplicateSecond->getStatusCode(), 'Second duplicate messageId payload must return 201.');
-    ensureEmailE2E(($duplicateFirstBody['data']['id'] ?? null) !== ($duplicateSecondBody['data']['id'] ?? null), 'Same messageId must not deduplicate tickets in the current MVP.');
+    ensureEmailE2E(false === ($duplicateFirstBody['duplicate'] ?? null), 'The first Message-ID must be a normal creation.');
+    ensureEmailE2E(Response::HTTP_OK === $duplicateSecond->getStatusCode(), 'Repeated messageId must return 200.');
+    ensureEmailE2E(true === ($duplicateSecondBody['duplicate'] ?? null), 'Repeated messageId must report duplicate true.');
+    ensureEmailE2E(($duplicateFirstBody['data']['id'] ?? null) === ($duplicateSecondBody['data']['id'] ?? null), 'Duplicate response must return the original ticket.');
+    ensureEmailE2E(
+        $countsBeforeDuplicate['ticket'] + 1 === $countsAfterFirstDuplicate['ticket']
+        && $countsBeforeDuplicate['analysis'] + 1 === $countsAfterFirstDuplicate['analysis']
+        && $countsBeforeDuplicate['history'] + 2 === $countsAfterFirstDuplicate['history'],
+        'First request must create exactly one ticket, AIAnalysis and history entry.',
+    );
+    ensureEmailE2E($aiCallsBeforeDuplicate + 1 === $aiCallsAfterFirstDuplicate, 'First request must call the AI exactly once.');
+    ensureEmailE2E($countsAfterFirstDuplicate === [
+        'ticket' => emailE2ECount($connection, 'ticket'),
+        'analysis' => emailE2ECount($connection, 'aianalysis'),
+        'history' => emailE2ECount($connection, 'ticket_history'),
+    ], 'Duplicate request must not create another ticket, analysis or history entry.');
+    ensureEmailE2E($aiCallsAfterFirstDuplicate === EmailE2EProvider::$callCount, 'Duplicate request must not call the AI provider.');
 
     foreach ([
         'missing bearer' => [emailE2EPayload(), null, 'application/json', Response::HTTP_UNAUTHORIZED],
@@ -381,6 +412,7 @@ try {
         'bad content type' => [emailE2EPayload(), 'Bearer '.EMAIL_E2E_SECRET, 'text/plain', Response::HTTP_UNSUPPORTED_MEDIA_TYPE],
         'invalid json' => ['{invalid-json', 'Bearer '.EMAIL_E2E_SECRET, 'application/json', Response::HTTP_BAD_REQUEST],
         'missing subject' => [array_diff_key(emailE2EPayload(), ['subject' => true]), 'Bearer '.EMAIL_E2E_SECRET, 'application/json', Response::HTTP_UNPROCESSABLE_ENTITY],
+        'missing messageId' => [array_diff_key(emailE2EPayload(), ['messageId' => true]), 'Bearer '.EMAIL_E2E_SECRET, 'application/json', Response::HTTP_UNPROCESSABLE_ENTITY],
         'invalid sender' => [emailE2EPayload(['sender' => 'not-an-email']), 'Bearer '.EMAIL_E2E_SECRET, 'application/json', Response::HTTP_UNPROCESSABLE_ENTITY],
         'unknown property' => [emailE2EPayload(['status' => 'CLOSED']), 'Bearer '.EMAIL_E2E_SECRET, 'application/json', Response::HTTP_UNPROCESSABLE_ENTITY],
     ] as $label => [$payload, $authorization, $contentType, $expectedStatus]) {
@@ -408,7 +440,10 @@ try {
 
     $missingUserController = emailE2EController($entityManager, $userRepository, 'missing-'.$systemEmail, logger: new EmailE2ETestLogger());
     $ticketCountBeforeMissingUser = emailE2ECount($connection, 'ticket');
-    $missingUserResponse = $missingUserController(emailE2ERequest(emailE2EPayload(['subject' => 'Compte système absent'])));
+    $missingUserResponse = $missingUserController(emailE2ERequest(emailE2EPayload([
+        'subject' => 'Compte système absent',
+        'messageId' => '<missing-system-user@example.test>',
+    ])));
     $missingUserBody = emailE2EDecode($missingUserResponse, 'missing system user');
     ensureEmailE2E(Response::HTTP_SERVICE_UNAVAILABLE === $missingUserResponse->getStatusCode(), 'Missing system user must return 503.');
     ensureEmailE2E('email_ingestion_system_user_unavailable' === ($missingUserBody['error']['code'] ?? null), 'Missing system user must use stable error code.');
@@ -422,11 +457,19 @@ try {
     ensureEmailE2E(str_contains($serializedWorkflow, '"name":"sender"'), 'n8n workflow must extract sender.');
     ensureEmailE2E(str_contains($serializedWorkflow, '"name":"subject"'), 'n8n workflow must extract subject.');
     ensureEmailE2E(str_contains($serializedWorkflow, '"name":"content"'), 'n8n workflow must extract content.');
+    ensureEmailE2E(str_contains($serializedWorkflow, '"name":"messageId"'), 'n8n workflow must extract messageId.');
     ensureEmailE2E(!str_contains($serializedWorkflow, 'credentials'), 'n8n workflow must not export credentials.');
     ensureEmailE2E(!str_contains($serializedWorkflow, 'Bearer'), 'n8n workflow must not contain a Bearer secret.');
     ensureEmailE2E(!str_contains($serializedWorkflow, 'OPENROUTER'), 'n8n workflow must not contain an OpenRouter key.');
-    ensureEmailE2E(!str_contains($serializedWorkflow, 'n8n-nodes-base.httpRequest'), 'n8n workflow must not contain HTTP Request in the current MVP.');
-    ensureEmailE2E(!str_contains($serializedWorkflow, '/api/tickets/email'), 'n8n workflow must not call the email API in the current MVP.');
+    ensureEmailE2E(str_contains($serializedWorkflow, 'n8n-nodes-base.httpRequest'), 'n8n workflow must contain HTTP Request.');
+    $httpNodes = array_values(array_filter(
+        $workflow['nodes'],
+        static fn (array $node): bool => 'n8n-nodes-base.httpRequest' === ($node['type'] ?? null),
+    ));
+    ensureEmailE2E(
+        'http://host.docker.internal:8000/api/tickets/email' === ($httpNodes[0]['parameters']['url'] ?? null),
+        'n8n workflow must target the local Pilot AI API.',
+    );
 
     $envContent = (string) file_get_contents(dirname(__DIR__, 2).'/.env');
     ensureEmailE2E((bool) preg_match('/^PILOTAI_EMAIL_WEBHOOK_SECRET=$/m', $envContent), '.env must not contain a real email webhook secret.');

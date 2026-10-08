@@ -9,6 +9,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: TicketRepository::class)]
+#[ORM\UniqueConstraint(name: 'UNIQ_TICKET_MESSAGE_ID', columns: ['message_id'])]
 class Ticket
 {
     public const STATUS_OPEN = 'OPEN';
@@ -60,6 +61,12 @@ class Ticket
 
     #[ORM\Column(length: 20)]
     private ?string $source = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $messageId = null;
+
+    #[ORM\Column(length: 180, nullable: true)]
+    private ?string $requesterEmail = null;
 
     #[ORM\Column]
     private ?\DateTimeImmutable $createdAt = null;
@@ -179,6 +186,30 @@ class Ticket
     public function setSource(string $source): static
     {
         $this->source = $source;
+
+        return $this;
+    }
+
+    public function getMessageId(): ?string
+    {
+        return $this->messageId;
+    }
+
+    public function setMessageId(?string $messageId): static
+    {
+        $this->messageId = $messageId;
+
+        return $this;
+    }
+
+    public function getRequesterEmail(): ?string
+    {
+        return $this->requesterEmail;
+    }
+
+    public function setRequesterEmail(?string $requesterEmail): static
+    {
+        $this->requesterEmail = $requesterEmail;
 
         return $this;
     }

@@ -533,6 +533,12 @@
                                 <dt>Client</dt>
                                 <dd>{{ ticket.createdBy.firstname }} {{ ticket.createdBy.lastname }}</dd>
                             </div>
+                            {% if ticket.requesterEmail %}
+                                <div>
+                                    <dt>Expéditeur e-mail</dt>
+                                    <dd>{{ ticket.requesterEmail }}</dd>
+                                </div>
+                            {% endif %}
                             <div>
                                 <dt>Statut</dt>
                                 <dd>{{ status_labels[ticket.status] }}</dd>

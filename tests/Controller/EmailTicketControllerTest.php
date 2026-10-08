@@ -167,9 +167,10 @@ function assertEmailLog(
         ensureEmailEndpoint($level === $record['level'], sprintf('Unexpected level for %s.', $event));
         ensureEmailEndpoint($event === ($record['context']['event'] ?? null), sprintf('Unexpected event for %s.', $event));
         ensureEmailEndpoint($step === ($record['context']['step'] ?? null), sprintf('Unexpected step for %s.', $event));
+        $exceptionKey = array_key_exists('exceptionClass', $record['context']) ? 'exceptionClass' : 'exception';
         ensureEmailEndpoint(
-            is_string($record['context']['exception'] ?? null)
-            && is_a($record['context']['exception'], $exception, true),
+            is_string($record['context'][$exceptionKey] ?? null)
+            && is_a($record['context'][$exceptionKey], $exception, true),
             sprintf('Unexpected exception for %s.', $event),
         );
         ensureEmailEndpoint($ticketId === ($record['context']['ticketId'] ?? null), sprintf('Unexpected ticketId for %s.', $event));
@@ -222,6 +223,7 @@ function validEmailPayload(array $overrides = []): array
         'sender' => 'client@example.test',
         'subject' => 'Connexion impossible',
         'content' => 'La connexion au service échoue.',
+        'messageId' => '<default-message@example.test>',
     ], $overrides);
 }
 
@@ -407,7 +409,7 @@ foreach ([[], ['value'], 'text', 42, true, null] as $invalidRoot) {
     decodedResponse($response, 'non-object JSON root');
 }
 
-foreach (['sender', 'subject', 'content'] as $missingField) {
+foreach (['sender', 'subject', 'content', 'messageId'] as $missingField) {
     $payload = validEmailPayload();
     unset($payload[$missingField]);
     $response = callEmailEndpoint($kernel, 'POST', encodedPayload($payload));
@@ -536,6 +538,7 @@ try {
             'sender' => 'Client@Example.test',
             'subject' => 'Phase A failure',
             'content' => 'The ticket must be rolled back.',
+            'messageId' => '<phase-a-failure@example.test>',
         ]),
     ));
     $phaseAFailureBody = decodedResponse($phaseAFailureResponse, 'ticket persistence failure');
@@ -586,12 +589,15 @@ try {
     ensureEmailEndpoint('EMAIL' === ($creationBody['data']['source'] ?? null), 'Source must be EMAIL.');
     ensureEmailEndpoint('OPEN' === ($creationBody['data']['status'] ?? null), 'Status must be OPEN.');
     ensureEmailEndpoint('created' === ($creationBody['data']['aiAnalysis'] ?? null), 'AI analysis must be reported as created.');
+    ensureEmailEndpoint(false === ($creationBody['duplicate'] ?? null), 'New ticket must report duplicate false.');
 
     $ticket = $creationEntityManager->find(Ticket::class, $creationBody['data']['id'] ?? null);
     ensureEmailEndpoint($ticket instanceof Ticket, 'Created ticket was not found.');
     ensureEmailEndpoint('Demande de support' === $ticket->getTitle(), 'Subject must map to title.');
     ensureEmailEndpoint("Première ligne\n\nDeuxième paragraphe" === $ticket->getDescription(), 'Content must map to description.');
     ensureEmailEndpoint('EMAIL' === $ticket->getSource(), 'Ticket source must be EMAIL.');
+    ensureEmailEndpoint('<message@example.test>' === $ticket->getMessageId(), 'The email Message-ID must be persisted.');
+    ensureEmailEndpoint('Client@Example.test' === $ticket->getRequesterEmail(), 'Sender email must be persisted separately from createdBy.');
     ensureEmailEndpoint('OPEN' === $ticket->getStatus(), 'Ticket status must be OPEN.');
     ensureEmailEndpoint('MEDIUM' === $ticket->getPriority(), 'Priority must be MEDIUM.');
     ensureEmailEndpoint($supportCategory->getId() === $ticket->getCategory()?->getId(), 'The unique suggested category must be assigned.');
@@ -600,6 +606,7 @@ try {
     ensureEmailEndpoint($systemUser === $ticket->getCreatedBy(), 'CreatedBy must be the system user.');
     ensureEmailEndpoint($ticket->getCreatedAt() instanceof \DateTimeImmutable, 'Created date must be server-generated.');
     ensureEmailEndpoint('Client@Example.test' !== $ticket->getCreatedBy()?->getEmail(), 'Sender must not become createdBy.');
+    ensureEmailEndpoint(null === (new Ticket())->getRequesterEmail(), 'Regular app tickets must keep requesterEmail null by default.');
     ensureEmailEndpoint(
         1 === (int) $creationConnection->fetchOne(
             'SELECT COUNT(*) FROM ticket_history WHERE ticket_id = ? AND action = ? AND changed_by_id IS NULL AND old_value IS NULL AND new_value = ?',
@@ -610,6 +617,37 @@ try {
     ensureEmailEndpoint('Demande de support' === EmailTestAIProvider::$receivedInput?->title, 'Only the ticket title must be sent to the AI.');
     ensureEmailEndpoint("Première ligne\n\nDeuxième paragraphe" === EmailTestAIProvider::$receivedInput?->description, 'Only the ticket description must be sent to the AI.');
     ensureEmailEndpoint(1 === EmailTestAIProvider::$callCount, 'Successful email ingestion must call the AI provider exactly once.');
+
+    $countsBeforeDuplicate = [
+        'ticket' => (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket'),
+        'analysis' => (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM aianalysis'),
+        'history' => (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket_history'),
+    ];
+    $aiCallsBeforeDuplicate = EmailTestAIProvider::$callCount;
+    $duplicateResponse = $creationController(Request::create(
+        '/api/tickets/email',
+        'POST',
+        server: [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_AUTHORIZATION' => 'Bearer test-secret',
+        ],
+        content: encodedPayload([
+            'sender' => 'Client@Example.test',
+            'subject' => 'Ce sujet ne doit pas remplacer le ticket existant',
+            'content' => 'Ce contenu ne doit pas remplacer le ticket existant.',
+            'messageId' => '<message@example.test>',
+        ]),
+    ));
+    $duplicateBody = decodedResponse($duplicateResponse, 'duplicate email message');
+    ensureEmailEndpoint(Response::HTTP_OK === $duplicateResponse->getStatusCode(), 'Duplicate Message-ID must return 200.');
+    ensureEmailEndpoint(true === ($duplicateBody['duplicate'] ?? null), 'Duplicate Message-ID must report duplicate true.');
+    ensureEmailEndpoint($ticket->getId() === ($duplicateBody['data']['id'] ?? null), 'Duplicate response must return the existing ticket.');
+    ensureEmailEndpoint($countsBeforeDuplicate === [
+        'ticket' => (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket'),
+        'analysis' => (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM aianalysis'),
+        'history' => (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM ticket_history'),
+    ], 'Duplicate request must not create a ticket, analysis or history.');
+    ensureEmailEndpoint($aiCallsBeforeDuplicate === EmailTestAIProvider::$callCount, 'Duplicate request must not call the AI provider.');
 
     $categoryCountBeforeNoMatch = (int) $creationConnection->fetchOne('SELECT COUNT(*) FROM category');
     $noMatchController = new EmailTicketController(
@@ -635,6 +673,7 @@ try {
             'sender' => 'Client@Example.test',
             'subject' => 'Aucune catégorie correspondante',
             'content' => 'Le ticket doit rester non catégorisé.',
+            'messageId' => '<no-category@example.test>',
         ]),
     ));
     $noMatchBody = decodedResponse($noMatchResponse, 'email without matching category');
@@ -673,6 +712,7 @@ try {
             'sender' => 'Client@Example.test',
             'subject' => 'Wi-Fi connecté sans Internet',
             'content' => 'Mon ordinateur se connecte au Wi-Fi mais je n’ai pas Internet.',
+            'messageId' => '<wifi@example.test>',
         ]),
     ));
     $wifiBody = decodedResponse($wifiResponse, 'email Wi-Fi classification');
@@ -713,6 +753,7 @@ try {
             'sender' => 'Client@Example.test',
             'subject' => 'Provider indisponible',
             'content' => 'Le ticket doit rester conservé.',
+            'messageId' => '<provider-unavailable@example.test>',
         ]),
     ));
     $failureBody = decodedResponse($failureResponse, 'unavailable AI provider');
@@ -722,7 +763,7 @@ try {
         $creationLogger,
         'warning',
         'email_ingestion_ai_unavailable',
-        'ai_analysis',
+        'analyze',
         \App\AI\Exception\AIProviderException::class,
         (int) $failureBody['data']['id'],
     );
@@ -753,6 +794,7 @@ try {
             'sender' => 'Client@Example.test',
             'subject' => 'Réponse IA invalide',
             'content' => 'Le ticket doit rester conservé.',
+            'messageId' => '<invalid-ai-result@example.test>',
         ]),
     ));
     $invalidResultBody = decodedResponse($invalidResultResponse, 'invalid AI result');
@@ -762,7 +804,7 @@ try {
         $creationLogger,
         'warning',
         'email_ingestion_ai_unavailable',
-        'ai_analysis',
+        'analyze',
         \App\AI\Exception\AIValidationException::class,
         (int) $invalidResultBody['data']['id'],
     );
@@ -806,7 +848,7 @@ try {
         $creationLogger,
         'warning',
         'email_ingestion_ai_persistence_failed',
-        'ai_analysis_persistence',
+        'persist',
         \Throwable::class,
         (int) $aiPersistenceFailureBody['data']['id'],
     );
@@ -832,6 +874,7 @@ try {
             'sender' => 'Client@Example.test',
             'subject' => 'Demande de support',
             'content' => 'Contenu',
+            'messageId' => '<inactive-system-user@example.test>',
         ]),
     ));
     $unavailableBody = decodedResponse($unavailableResponse, 'inactive system user');
@@ -874,6 +917,7 @@ try {
             'sender' => 'Client@Example.test',
             'subject' => 'Phase A failure',
             'content' => 'The ticket must be rolled back.',
+            'messageId' => '<read-only-phase-a-failure@example.test>',
         ]),
     ));
     $phaseAFailureBody = decodedResponse($phaseAFailureResponse, 'ticket persistence failure');
