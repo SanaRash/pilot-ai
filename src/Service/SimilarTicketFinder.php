@@ -11,9 +11,35 @@ use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 final class SimilarTicketFinder
 {
     private const int MAX_TERMS = 20;
+    private const int MAX_KEYWORDS = 20;
     private const int MIN_TERM_LENGTH = 4;
     private const int MAX_CANDIDATES = 50;
-    private const int MAX_RESULTS = 5;
+    private const int MAX_RESULTS = 3;
+    private const int MIN_SCORE = 7;
+    private const array STOP_WORDS = [
+        'autre' => true,
+        'avoir' => true,
+        'avec' => true,
+        'bien' => true,
+        'bonjour' => true,
+        'dans' => true,
+        'deja' => true,
+        'demande' => true,
+        'depuis' => true,
+        'etre' => true,
+        'faire' => true,
+        'mais' => true,
+        'merci' => true,
+        'plus' => true,
+        'pour' => true,
+        'probleme' => true,
+        'reste' => true,
+        'sans' => true,
+        'ticket' => true,
+        'tres' => true,
+        'verifie' => true,
+        'verifier' => true,
+    ];
 
     public function __construct(
         private readonly TicketRepository $ticketRepository,
@@ -31,14 +57,15 @@ final class SimilarTicketFinder
         }
 
         $latestAnalysis = $this->aiAnalysisRepository->findLatestForTicket($ticket);
-        $terms = $this->extractTerms([
-            ...($latestAnalysis?->getKeywords() ?? []),
+        $signals = $this->extractSignals(
+            $latestAnalysis?->getKeywords() ?? [],
             $ticket->getTitle(),
             $ticket->getDescription(),
-        ]);
+        );
+        $prefilterTerms = $this->mergeSignalsForPrefilter($signals['keywords'], $signals['terms']);
         $candidates = $this->ticketRepository->findSimilarityCandidates(
             $ticket,
-            $terms,
+            $prefilterTerms,
             $this->normalizeText($ticket->getTitle()),
             self::MAX_CANDIDATES,
         );
@@ -46,9 +73,9 @@ final class SimilarTicketFinder
         $scoredTickets = [];
 
         foreach ($candidates as $candidate) {
-            $score = $this->calculateScore($ticket, $candidate, $terms);
+            $score = $this->calculateSignalScore($ticket, $candidate, $signals['keywords'], $signals['terms']);
 
-            if ($score > 0) {
+            if ($score >= self::MIN_SCORE) {
                 $scoredTickets[] = ['ticket' => $candidate, 'score' => $score];
             }
         }
@@ -87,13 +114,13 @@ final class SimilarTicketFinder
         $candidateDescription = $this->normalizeText($candidate->getDescription());
 
         if ('' !== $ticketTitle && $ticketTitle === $candidateTitle) {
-            $score += 8;
+            $score += 10;
         }
 
         $ticketCategoryId = $ticket->getCategory()?->getId();
 
         if (null !== $ticketCategoryId && $ticketCategoryId === $candidate->getCategory()?->getId()) {
-            $score += 3;
+            $score += 6;
         }
 
         $scoredTerms = [];
@@ -108,7 +135,7 @@ final class SimilarTicketFinder
             $scoredTerms[$normalizedTerm] = true;
 
             if (str_contains($candidateTitle, $normalizedTerm)) {
-                $score += 2;
+                $score += 3;
             }
 
             if (str_contains($candidateDescription, $normalizedTerm)) {
@@ -117,6 +144,38 @@ final class SimilarTicketFinder
 
             if (self::MAX_TERMS === count($scoredTerms)) {
                 break;
+            }
+        }
+
+        return $score;
+    }
+
+    /**
+     * @param list<string> $keywords
+     * @param list<string> $terms
+     */
+    private function calculateSignalScore(Ticket $ticket, Ticket $candidate, array $keywords, array $terms): int
+    {
+        $score = $this->calculateScore($ticket, $candidate, $terms);
+        $candidateTitle = $this->normalizeText($candidate->getTitle());
+        $candidateDescription = $this->normalizeText($candidate->getDescription());
+        $scoredKeywords = [];
+
+        foreach ($keywords as $keyword) {
+            $normalizedKeyword = $this->normalizeText($keyword);
+
+            if (mb_strlen($normalizedKeyword) < self::MIN_TERM_LENGTH || isset($scoredKeywords[$normalizedKeyword])) {
+                continue;
+            }
+
+            $scoredKeywords[$normalizedKeyword] = true;
+
+            if (str_contains($candidateTitle, $normalizedKeyword)) {
+                $score += 5;
+            }
+
+            if (str_contains($candidateDescription, $normalizedKeyword)) {
+                $score += 3;
             }
         }
 
@@ -138,11 +197,18 @@ final class SimilarTicketFinder
             }
 
             foreach (preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower($source), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $term) {
-                if (mb_strlen($term) < self::MIN_TERM_LENGTH || isset($terms[$term])) {
+                $normalizedTerm = $this->normalizeText($term);
+                $termKey = $this->normalizeTermKey($normalizedTerm);
+
+                if (
+                    mb_strlen($normalizedTerm) < self::MIN_TERM_LENGTH
+                    || isset(self::STOP_WORDS[$termKey])
+                    || isset($terms[$normalizedTerm])
+                ) {
                     continue;
                 }
 
-                $terms[$term] = true;
+                $terms[$normalizedTerm] = true;
 
                 if (self::MAX_TERMS === count($terms)) {
                     break 2;
@@ -153,8 +219,105 @@ final class SimilarTicketFinder
         return array_keys($terms);
     }
 
+    /**
+     * @param array<array-key, mixed> $keywords
+     *
+     * @return array{keywords: list<string>, terms: list<string>}
+     */
+    private function extractSignals(array $keywords, string $title, string $description): array
+    {
+        $keywordSignals = [];
+
+        foreach ($keywords as $keyword) {
+            if (!is_string($keyword)) {
+                continue;
+            }
+
+            $normalizedKeyword = $this->normalizeText($keyword);
+
+            if (mb_strlen($normalizedKeyword) < self::MIN_TERM_LENGTH || isset($keywordSignals[$normalizedKeyword])) {
+                continue;
+            }
+
+            $keywordSignals[$normalizedKeyword] = true;
+
+            if (self::MAX_KEYWORDS === count($keywordSignals)) {
+                break;
+            }
+        }
+
+        return [
+            'keywords' => array_keys($keywordSignals),
+            'terms' => $this->extractTerms([
+                ...array_keys($keywordSignals),
+                $title,
+                $description,
+            ]),
+        ];
+    }
+
+    /**
+     * @param list<string> $keywords
+     * @param list<string> $terms
+     *
+     * @return list<string>
+     */
+    private function mergeSignalsForPrefilter(array $keywords, array $terms): array
+    {
+        $signals = [];
+
+        foreach ([...$keywords, ...$terms] as $signal) {
+            $normalizedSignal = $this->normalizeText($signal);
+
+            if ('' === $normalizedSignal || isset($signals[$normalizedSignal])) {
+                continue;
+            }
+
+            $signals[$normalizedSignal] = true;
+
+            if (self::MAX_TERMS === count($signals)) {
+                break;
+            }
+        }
+
+        return array_keys($signals);
+    }
+
+    private function normalizeTermKey(string $value): string
+    {
+        return strtr($value, [
+            'à' => 'a',
+            'â' => 'a',
+            'ä' => 'a',
+            'á' => 'a',
+            'ã' => 'a',
+            'å' => 'a',
+            'ç' => 'c',
+            'é' => 'e',
+            'è' => 'e',
+            'ê' => 'e',
+            'ë' => 'e',
+            'í' => 'i',
+            'ì' => 'i',
+            'î' => 'i',
+            'ï' => 'i',
+            'ñ' => 'n',
+            'ó' => 'o',
+            'ò' => 'o',
+            'ô' => 'o',
+            'ö' => 'o',
+            'õ' => 'o',
+            'ù' => 'u',
+            'û' => 'u',
+            'ü' => 'u',
+            'ú' => 'u',
+            'ý' => 'y',
+            'ÿ' => 'y',
+        ]);
+    }
+
     private function normalizeText(?string $value): string
     {
-        return trim(mb_strtolower($value ?? ''), ' ');
+        return trim(preg_replace('/\s+/u', ' ', mb_strtolower($value ?? '')) ?? '', ' ');
     }
 }

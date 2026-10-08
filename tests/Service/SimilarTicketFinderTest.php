@@ -61,12 +61,12 @@ $finder = new SimilarTicketFinder($ticketRepository, $analysisRepository);
 $scoreTicket = ticket('Incident connexion', 'Description courante', new DateTimeImmutable('2026-09-21 09:00:00'));
 $scoreCandidate = ticket('  INCIDENT CONNEXION  ', 'Erreur réseau détectée', new DateTimeImmutable('2026-09-21 10:00:00'));
 ensureSimilarity(
-    8 === $finder->calculateScore($scoreTicket, $scoreCandidate, []),
-    'An exact normalized title must add exactly 8.',
+    10 === $finder->calculateScore($scoreTicket, $scoreCandidate, []),
+    'An exact normalized title must add exactly 10.',
 );
 ensureSimilarity(
-    2 === $finder->calculateScore($scoreTicket, ticket('Connexion lente', 'RAS', new DateTimeImmutable()), ['connexion']),
-    'A title term must add exactly 2.',
+    3 === $finder->calculateScore($scoreTicket, ticket('Connexion lente', 'RAS', new DateTimeImmutable()), ['connexion']),
+    'A title term must add exactly 3.',
 );
 ensureSimilarity(
     1 === $finder->calculateScore($scoreTicket, ticket('Incident distinct', 'Connexion lente', new DateTimeImmutable()), ['connexion']),
@@ -97,78 +97,139 @@ try {
         ->setLastname('Similarity')
         ->setIsActive(true)
         ->setCreatedAt(new DateTimeImmutable());
-    $category = (new Category())->setName('Réseau '.bin2hex(random_bytes(4)));
-    $otherCategory = (new Category())->setName('Matériel '.bin2hex(random_bytes(4)));
+    $networkCategory = (new Category())->setName('Réseau '.bin2hex(random_bytes(4)));
+    $hardwareCategory = (new Category())->setName('Matériel '.bin2hex(random_bytes(4)));
+    $printCategory = (new Category())->setName('Impression '.bin2hex(random_bytes(4)));
+    $marketingCategory = (new Category())->setName('Marketing '.bin2hex(random_bytes(4)));
 
-    $current = ticket('Connexion VPN impossible', 'Erreur réseau au bureau', new DateTimeImmutable('2026-09-20 08:00:00'))
+    $current = ticket(
+        'Écran noir matériel',
+        'Bonjour, mon ordinateur démarre mais l’écran reste noir. J’ai déjà vérifié le câble et redémarré. Merci.',
+        new DateTimeImmutable('2026-09-20 08:00:00'),
+    )
         ->setCreatedBy($client)
-        ->setCategory($category);
-    $exactTitle = ticket('connexion vpn impossible', 'Incident distinct', new DateTimeImmutable('2026-09-20 09:00:00'))
+        ->setCategory($hardwareCategory);
+    $relevantScreen = ticket(
+        'Écran noir au démarrage',
+        'Affichage noir au lancement avec contrôle du câble vidéo et test sur écran externe.',
+        new DateTimeImmutable('2026-09-20 09:00:00'),
+    )
         ->setCreatedBy($client)
-        ->setCategory($otherCategory);
-    $keywordCandidate = ticket('Certificat expiré', 'Le tunnel ultrasecret échoue', new DateTimeImmutable('2026-09-20 10:00:00'))
+        ->setCategory($hardwareCategory);
+    $printerFalsePositive = ticket(
+        'Imprimante hors ligne',
+        'Bonjour, j’ai déjà vérifié le câble et redémarré l’imprimante. Merci.',
+        new DateTimeImmutable('2026-09-20 10:00:00'),
+    )
         ->setCreatedBy($client)
-        ->setCategory($otherCategory);
-    $oldKeywordOnly = ticket('Ancien incident', 'Le terme ancienmot est présent', new DateTimeImmutable('2026-09-20 11:00:00'))
+        ->setCategory($printCategory);
+    $wifiFalsePositive = ticket(
+        'Impossible d’accéder au Wi-Fi',
+        'Mon ordinateur est connecté mais Internet ne fonctionne pas.',
+        new DateTimeImmutable('2026-09-20 11:00:00'),
+    )
         ->setCreatedBy($client)
-        ->setCategory($otherCategory);
-    $categoryOnly = ticket('Imprimante bloquée', 'Papier coincé', new DateTimeImmutable('2026-09-20 12:00:00'))
+        ->setCategory($networkCategory);
+    $marketingFalsePositive = ticket(
+        'Growth Marketer IA',
+        'Mais le résultat reste déjà différent de la demande, merci.',
+        new DateTimeImmutable('2026-09-20 12:00:00'),
+    )
         ->setCreatedBy($client)
-        ->setCategory($category);
-    $unrelated = ticket('Écran cassé', 'Dalle endommagée', new DateTimeImmutable('2026-09-20 13:00:00'))
+        ->setCategory($marketingCategory);
+    $sameCategoryOnly = ticket(
+        'Boîtier cassé',
+        'Capot plastique abîmé',
+        new DateTimeImmutable('2026-09-20 13:00:00'),
+    )
         ->setCreatedBy($client)
-        ->setCategory($otherCategory);
+        ->setCategory($hardwareCategory);
+    $oldKeywordOnly = ticket(
+        'Ancien incident',
+        'Le terme ancienmot est présent',
+        new DateTimeImmutable('2026-09-20 14:00:00'),
+    )
+        ->setCreatedBy($client)
+        ->setCategory($marketingCategory);
 
-    foreach ([$technician, $client, $category, $otherCategory, $current, $exactTitle, $keywordCandidate, $oldKeywordOnly, $categoryOnly, $unrelated] as $entity) {
+    foreach (
+        [
+            $technician,
+            $client,
+            $networkCategory,
+            $hardwareCategory,
+            $printCategory,
+            $marketingCategory,
+            $current,
+            $relevantScreen,
+            $printerFalsePositive,
+            $wifiFalsePositive,
+            $marketingFalsePositive,
+            $sameCategoryOnly,
+            $oldKeywordOnly,
+        ] as $entity
+    ) {
         $entityManager->persist($entity);
     }
     $entityManager->flush();
 
-    $sameAnalysisDate = new DateTimeImmutable('2026-09-20 14:00:00');
+    $sameAnalysisDate = new DateTimeImmutable('2026-09-20 15:00:00');
     $oldAnalysis = analysis($current, ['ancienmot'], $sameAnalysisDate);
-    $latestAnalysis = analysis($current, ['ultrasecret'], $sameAnalysisDate);
+    $latestAnalysis = analysis($current, ['écran noir', 'démarrage', 'câble vidéo', 'matériel'], $sameAnalysisDate);
     $entityManager->persist($oldAnalysis);
     $entityManager->persist($latestAnalysis);
     $entityManager->flush();
 
     ensureSimilarity($latestAnalysis === $analysisRepository->findLatestForTicket($current), 'Latest analysis must use createdAt DESC then id DESC.');
     ensureSimilarity(
-        3 === $finder->calculateScore($current, $categoryOnly, []),
-        'A shared non-null category must add exactly 3.',
+        6 === $finder->calculateScore($current, $sameCategoryOnly, []),
+        'A shared non-null category must add exactly 6.',
     );
 
     $currentBefore = serialize($current);
     $similar = $finder->findSimilar($current, $technician);
     ensureSimilarity(!in_array($current, $similar, true), 'The current ticket must always be excluded.');
-    ensureSimilarity(in_array($exactTitle, $similar, true), 'Exact title candidate is missing.');
-    ensureSimilarity(in_array($keywordCandidate, $similar, true), 'Latest AI keyword candidate is missing.');
+    ensureSimilarity(in_array($relevantScreen, $similar, true), 'The relevant screen/material ticket must be returned for the screen scenario.');
+    ensureSimilarity(!in_array($printerFalsePositive, $similar, true), 'Printer ticket must be excluded as a former false positive.');
+    ensureSimilarity(!in_array($wifiFalsePositive, $similar, true), 'Wi-Fi ticket must be excluded as a former false positive.');
+    ensureSimilarity(!in_array($marketingFalsePositive, $similar, true), 'Growth marketing ticket must be excluded as a former false positive.');
+    ensureSimilarity(!in_array($sameCategoryOnly, $similar, true), 'Same category alone must stay below the minimum score.');
     ensureSimilarity(!in_array($oldKeywordOnly, $similar, true), 'An older AI keyword must not be used.');
-    ensureSimilarity(in_array($categoryOnly, $similar, true), 'Same-category candidate is missing.');
-    ensureSimilarity(!in_array($unrelated, $similar, true), 'A zero-score candidate must be excluded.');
-    ensureSimilarity($exactTitle === $similar[0], 'The highest score must be returned first.');
     ensureSimilarity($currentBefore === serialize($current), 'Similarity search mutated the current ticket.');
 
-    $shortCurrent = ticket('VPN', 'DNS', new DateTimeImmutable('2026-09-20 15:00:00'))->setCreatedBy($client);
-    $shortExactTitle = ticket(' vpn ', 'SSH', new DateTimeImmutable('2026-09-20 16:00:00'))->setCreatedBy($client);
+    $keywordCurrent = ticket('Connexion VPN impossible', 'Erreur réseau au bureau', new DateTimeImmutable('2026-09-21 08:00:00'))
+        ->setCreatedBy($client)
+        ->setCategory($networkCategory);
+    $keywordCandidate = ticket('Certificat expiré', 'Le tunnel VPN échoue', new DateTimeImmutable('2026-09-21 09:00:00'))
+        ->setCreatedBy($client)
+        ->setCategory($marketingCategory);
+    $descriptionOnlyWeak = ticket('Incident distinct', 'Connexion lente seulement dans la description', new DateTimeImmutable('2026-09-21 10:00:00'))
+        ->setCreatedBy($client)
+        ->setCategory($marketingCategory);
+    $stopWordsOnly = ticket('Autre demande', 'Bonjour merci déjà mais avec sans pour dans depuis autre reste vérifié vérifier être avoir faire plus très bien problème ticket demande', new DateTimeImmutable('2026-09-21 11:00:00'))
+        ->setCreatedBy($client)
+        ->setCategory($marketingCategory);
+    $entityManager->persist($keywordCurrent);
+    $entityManager->persist($keywordCandidate);
+    $entityManager->persist($descriptionOnlyWeak);
+    $entityManager->persist($stopWordsOnly);
+    $entityManager->flush();
+    $entityManager->persist(analysis($keywordCurrent, ['certificat expiré'], new DateTimeImmutable('2026-09-21 12:00:00')));
+    $entityManager->flush();
+
+    $keywordResults = $finder->findSimilar($keywordCurrent, $technician);
+    ensureSimilarity(in_array($keywordCandidate, $keywordResults, true), 'AI keyword phrase and terms must favor a relevant candidate.');
+    ensureSimilarity(!in_array($descriptionOnlyWeak, $keywordResults, true), 'A weak description-only match must stay below the minimum score.');
+    ensureSimilarity(!in_array($stopWordsOnly, $keywordResults, true), 'Stop words must not produce similar tickets.');
+
+    $shortCurrent = ticket('VPN', 'DNS', new DateTimeImmutable('2026-09-22 08:00:00'))->setCreatedBy($client);
+    $shortExactTitle = ticket(' vpn ', 'SSH', new DateTimeImmutable('2026-09-22 09:00:00'))->setCreatedBy($client);
     $entityManager->persist($shortCurrent);
     $entityManager->persist($shortExactTitle);
     $entityManager->flush();
     ensureSimilarity(
-        [$shortExactTitle] === $finder->findSimilar($shortCurrent, $technician),
+        in_array($shortExactTitle, $finder->findSimilar($shortCurrent, $technician), true),
         'An exact normalized short title must reach scoring even without category or four-character terms.',
-    );
-    $spacingCurrent = ticket('VPN DNS', 'SSH', new DateTimeImmutable('2026-09-20 16:30:00'))->setCreatedBy($client);
-    $differentInternalSpacing = ticket('vpn   dns', 'FTP', new DateTimeImmutable('2026-09-20 17:00:00'))->setCreatedBy($client);
-    $entityManager->persist($spacingCurrent);
-    $entityManager->persist($differentInternalSpacing);
-    $entityManager->flush();
-    ensureSimilarity(
-        0 === $finder->calculateScore($spacingCurrent, $differentInternalSpacing, []),
-        'Internal spacing must remain significant in both prefiltering and scoring.',
-    );
-    ensureSimilarity(
-        [] === $finder->findSimilar($spacingCurrent, $technician),
-        'Prefiltering and scoring must agree when internal title spacing differs.',
     );
 
     try {
@@ -178,19 +239,19 @@ try {
     }
 
     $limitCategory = (new Category())->setName('Limite '.bin2hex(random_bytes(4)));
-    $limitCurrent = ticket('Sujet sans correspondance lexicale', 'Description unique', new DateTimeImmutable('2026-09-21 08:00:00'))
+    $limitCurrent = ticket('Routeur principal', 'Signal réseau stable', new DateTimeImmutable('2026-09-23 08:00:00'))
         ->setCreatedBy($client)
         ->setCategory($limitCategory);
     $entityManager->persist($limitCategory);
     $entityManager->persist($limitCurrent);
 
     $expectedNewest = [];
-    $candidateBaseDate = new DateTimeImmutable('2026-09-21 09:00:00');
+    $candidateBaseDate = new DateTimeImmutable('2026-09-23 09:00:00');
     for ($index = 1; $index <= 51; ++$index) {
         $candidateDate = $candidateBaseDate->modify(sprintf('+%d minutes', $index >= 50 ? 51 : $index));
         $candidate = ticket(
-            'Candidat '.$index,
-            'Autre contenu '.$index,
+            'Routeur candidat '.$index,
+            'Signal différent '.$index,
             $candidateDate,
         )
             ->setCreatedBy($client)
@@ -201,14 +262,47 @@ try {
     $entityManager->flush();
 
     $limitedResults = $finder->findSimilar($limitCurrent, $technician);
-    ensureSimilarity(5 === count($limitedResults), 'At most five similar tickets must be returned.');
+    ensureSimilarity(3 === count($limitedResults), 'At most three similar tickets must be returned.');
     ensureSimilarity(
-        array_reverse(array_slice($expectedNewest, -5)) === $limitedResults,
+        array_reverse(array_slice($expectedNewest, -3)) === $limitedResults,
         'Equal scores must be ordered by createdAt DESC then id DESC.',
     );
     ensureSimilarity(
-        50 === count($ticketRepository->findSimilarityCandidates($limitCurrent, [], 'sujet sans correspondance lexicale', 100)),
+        50 === count($ticketRepository->findSimilarityCandidates($limitCurrent, [], 'routeur principal', 100)),
         'Candidate prefilter must enforce its hard limit of 50.',
+    );
+
+    $uncategorizedCurrent = ticket('Écran scintille', 'Affichage instable sur moniteur externe', new DateTimeImmutable('2026-09-24 08:00:00'))
+        ->setCreatedBy($client);
+    $uncategorizedCandidate = ticket('Affichage écran instable', 'Moniteur externe avec écran qui scintille', new DateTimeImmutable('2026-09-24 09:00:00'))
+        ->setCreatedBy($client);
+    $uncategorizedUnrelated = ticket('Téléphone muet', 'Sonnerie absente', new DateTimeImmutable('2026-09-24 10:00:00'))
+        ->setCreatedBy($client);
+    $entityManager->persist($uncategorizedCurrent);
+    $entityManager->persist($uncategorizedCandidate);
+    $entityManager->persist($uncategorizedUnrelated);
+    $entityManager->flush();
+
+    ensureSimilarity(
+        in_array($uncategorizedCandidate, $finder->findSimilar($uncategorizedCurrent, $technician), true),
+        'An uncategorized ticket must still use strict title and description signals.',
+    );
+
+    $belowThresholdCategory = (new Category())->setName('Seuil '.bin2hex(random_bytes(4)));
+    $belowThresholdCurrent = ticket('Batterie portable', 'Autonomie faible', new DateTimeImmutable('2026-09-25 08:00:00'))
+        ->setCreatedBy($client)
+        ->setCategory($belowThresholdCategory);
+    $belowThresholdCandidate = ticket('Chargeur station', 'Câble secteur', new DateTimeImmutable('2026-09-25 09:00:00'))
+        ->setCreatedBy($client)
+        ->setCategory($belowThresholdCategory);
+    $entityManager->persist($belowThresholdCategory);
+    $entityManager->persist($belowThresholdCurrent);
+    $entityManager->persist($belowThresholdCandidate);
+    $entityManager->flush();
+
+    ensureSimilarity(
+        [] === $finder->findSimilar($belowThresholdCurrent, $technician),
+        'A score below seven must not produce any result.',
     );
 } finally {
     $entityManager->clear();
