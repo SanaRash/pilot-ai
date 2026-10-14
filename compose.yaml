@@ -3,6 +3,8 @@ services:
     image: postgres:17
     container_name: pilot-ai-db
     restart: unless-stopped
+    labels:
+      com.symfony.server.service-ignore: "true"
 
     environment:
       POSTGRES_DB: pilot_ai
