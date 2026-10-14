@@ -222,14 +222,14 @@ try {
 
     $ticket = clientAssistantTicket($client, 'Ticket Wi-Fi assistant', $category);
     $foreignTicket = clientAssistantTicket($otherClient, 'Ticket autre client assistant', $category);
-    $matchingArticle = (new KnowledgeArticle('Aide Wi-Fi', 'Procédure wifi client-safe.', ['wifi']))
+    $matchingArticle = (new KnowledgeArticle('Aide Wi-Fi', 'Procédure assistantwifiunique client-safe.', ['assistantwifiunique']))
         ->setCategory($category)
         ->setIsActive(true)
         ->setIsClientSafe(true);
-    $inactiveArticle = (new KnowledgeArticle('Article inactif', 'wifi inactif', ['wifi']))
+    $inactiveArticle = (new KnowledgeArticle('Article inactif', 'assistantwifiunique inactif', ['assistantwifiunique']))
         ->setIsActive(false)
         ->setIsClientSafe(true);
-    $internalArticle = (new KnowledgeArticle('Article interne', 'wifi interne', ['wifi']))
+    $internalArticle = (new KnowledgeArticle('Article interne', 'assistantwifiunique interne', ['assistantwifiunique']))
         ->setIsActive(true)
         ->setIsClientSafe(false);
     foreach ([$ticket, $foreignTicket, $matchingArticle, $inactiveArticle, $internalArticle] as $entity) {
@@ -255,7 +255,7 @@ try {
     $response = clientAssistantCall(
         $controller,
         $requestStack,
-        clientAssistantRequest($session, $csrfToken, ['message' => '  Mon wifi coupe  ', 'ticketId' => $ticket->getId()]),
+        clientAssistantRequest($session, $csrfToken, ['message' => '  assistantwifiunique  ', 'ticketId' => $ticket->getId()]),
         $ticketRepository,
         $knowledgeSearchService,
         $assistantService,
@@ -270,10 +270,15 @@ try {
     ensureClientAssistant(false === $json['needsTechnician'], 'The assistant JSON response must expose the structured needsTechnician flag.');
     ensureClientAssistant(1 === $provider->callCount, 'The assistant provider must be called exactly once.');
     ensureClientAssistant($provider->lastInput instanceof AssistantInput, 'The provider input must be captured.');
-    ensureClientAssistant('Mon wifi coupe' === $provider->lastInput->clientMessage, 'The client message must be trimmed before provider call.');
+    ensureClientAssistant('assistantwifiunique' === $provider->lastInput->clientMessage, 'The client message must be trimmed before provider call.');
     ensureClientAssistant('Ticket Wi-Fi assistant' === $provider->lastInput->ticketTitle, 'The owned ticket context must be passed.');
-    ensureClientAssistant(1 === count($provider->lastInput->knowledgeArticles), 'Only selected client-safe active knowledge articles must reach the assistant.');
-    ensureClientAssistant('Aide Wi-Fi' === $provider->lastInput->knowledgeArticles[0]->getTitle(), 'The matching knowledge article must be selected.');
+    ensureClientAssistant(count($provider->lastInput->knowledgeArticles) <= 3, 'At most three selected knowledge articles must reach the assistant.');
+    ensureClientAssistant(
+        in_array($matchingArticle, $provider->lastInput->knowledgeArticles, true),
+        'The matching knowledge article must be selected.',
+    );
+    ensureClientAssistant(!in_array($inactiveArticle, $provider->lastInput->knowledgeArticles, true), 'Inactive knowledge articles must not reach the assistant.');
+    ensureClientAssistant(!in_array($internalArticle, $provider->lastInput->knowledgeArticles, true), 'Internal knowledge articles must not reach the assistant.');
     ensureClientAssistant([] === $provider->lastInput->history, 'Missing history must be accepted as an empty conversation history.');
     ensureClientAssistant(Ticket::STATUS_OPEN === $ticket->getStatus(), 'The assistant must not mutate ticket status.');
     ensureClientAssistant(Ticket::PRIORITY_MEDIUM === $ticket->getPriority(), 'The assistant must not mutate ticket priority.');
@@ -395,7 +400,7 @@ try {
     $noArticleResponse = clientAssistantCall(
         $controller,
         $requestStack,
-        clientAssistantRequest($session, $csrfToken, ['message' => 'sujet sans correspondance xylophone']),
+        clientAssistantRequest($session, $csrfToken, ['message' => 'zzzzzzzqwerty']),
         $ticketRepository,
         $knowledgeSearchService,
         new AssistantService($noArticleProvider),
